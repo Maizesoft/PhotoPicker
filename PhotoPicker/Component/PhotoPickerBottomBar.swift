@@ -5,6 +5,7 @@ class PhotoPickerBottomBar: UIView {
     let scrollView = UIScrollView()
     let stackView = UIStackView()
     var imageManager: PHCachingImageManager?
+    let cellSize = CGSizeMake(50, 50)
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -17,13 +18,25 @@ class PhotoPickerBottomBar: UIView {
     }
     
     private func setupView() {
+        let blurEffect = UIBlurEffect(style: .systemMaterial)
+        let blurView = UIVisualEffectView(effect: blurEffect)
+        blurView.translatesAutoresizingMaskIntoConstraints = false
+        insertSubview(blurView, at: 0)
+        NSLayoutConstraint.activate([
+            blurView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            blurView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            blurView.topAnchor.constraint(equalTo: topAnchor),
+            blurView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
         addSubview(scrollView)
+        scrollView.showsHorizontalScrollIndicator = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: self.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: self.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: self.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: self.bottomAnchor)
+            scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
         ])
         
         scrollView.addSubview(stackView)
@@ -51,14 +64,16 @@ class PhotoPickerBottomBar: UIView {
         
         for asset in assets {
             let thumbImageView = UIImageView()
+            thumbImageView.layer.borderColor = UIColor.white.cgColor
+            thumbImageView.layer.borderWidth = 2
             thumbImageView.contentMode = .scaleAspectFill
             thumbImageView.clipsToBounds = true
             thumbImageView.translatesAutoresizingMaskIntoConstraints = false
-            thumbImageView.widthAnchor.constraint(equalToConstant: 60).isActive = true
-            thumbImageView.heightAnchor.constraint(equalToConstant: 60).isActive = true
+            thumbImageView.widthAnchor.constraint(equalToConstant: cellSize.width).isActive = true
+            thumbImageView.heightAnchor.constraint(equalToConstant: cellSize.height).isActive = true
             stackView.addArrangedSubview(thumbImageView)
             
-            imageManager.requestImage(for: asset, targetSize: CGSize(width: 60, height: 60), contentMode: .aspectFill, options: nil) { image, _ in
+            imageManager.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
                 thumbImageView.image = image
             }
         }

@@ -8,6 +8,8 @@
 import UIKit
 
 class PhotoPickerCell: UICollectionViewCell {
+    var representedAssetIdentifier: String?
+    
     let imageView: UIImageView = {
         let iv = UIImageView()
         iv.contentMode = .scaleAspectFill

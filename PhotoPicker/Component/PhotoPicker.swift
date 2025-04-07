@@ -10,6 +10,7 @@ import Photos
 
 class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UIPopoverPresentationControllerDelegate {
     var assets: [PHAsset] = []
+    var selectedAssets: [PHAsset] = []
     var collections: [PHAssetCollection] = []
     var currentCollectionIndex = 0
     let albumButton = UIButton(type: .system)
@@ -63,9 +64,10 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         NSLayoutConstraint.activate([
             bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bottomBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             bottomBar.heightAnchor.constraint(equalToConstant: 100)
         ])
+        bottomBar.isHidden = true
         bottomBar.imageManager = imageManager
 
         PHPhotoLibrary.requestAuthorization { status in
@@ -100,6 +102,14 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
             DispatchQueue.main.async {
                 self.assets = fetchedAssets
                 self.collectionView.reloadData()
+                // restore selection
+                for (index, asset) in self.assets.enumerated() {
+                    if self.selectedAssets.contains(where: { $0.localIdentifier == asset.localIdentifier }) {
+                        let indexPath = IndexPath(item: index, section: 0)
+                        self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
+                    }
+                }
+                
                 self.activityIndicator.stopAnimating()
             }
         }
@@ -112,8 +122,11 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoPickerCell", for: indexPath) as! PhotoPickerCell
         let asset = assets[indexPath.item]
+        cell.representedAssetIdentifier = asset.localIdentifier
         imageManager.requestImage(for: asset, targetSize: cellImageSize, contentMode: .aspectFill, options: nil) { image, _ in
-            cell.imageView.image = image
+            if cell.representedAssetIdentifier == asset.localIdentifier {
+                cell.imageView.image = image
+            }
         }
         return cell
     }
@@ -164,22 +177,24 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         return .none
     }
     
-    // Add the update method for the bottom bar.
-    func updateBottomBar() {
-        guard let selectedIndexPaths = collectionView.indexPathsForSelectedItems else {
-            bottomBar.update(with: [])
-            return
-        }
-        let selectedAssets = selectedIndexPaths.map { assets[$0.item] }
-        bottomBar.update(with: selectedAssets)
-    }
-    
     // Update selection delegate methods to update the bottom bar.
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        updateBottomBar()
+        guard indexPath.item < assets.count else { return }
+        let asset = assets[indexPath.item]
+        if !selectedAssets.contains(where: { $0.localIdentifier == asset.localIdentifier }) {
+            selectedAssets.append(asset)
+        }
+        bottomBar.update(with: selectedAssets)
+        bottomBar.isHidden = selectedAssets.isEmpty
     }
     
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
-        updateBottomBar()
+        guard indexPath.item < assets.count else { return }
+        let asset = assets[indexPath.item]
+        if let index = selectedAssets.firstIndex(of: asset) {
+            selectedAssets.remove(at: index)
+        }
+        bottomBar.update(with: selectedAssets)
+        bottomBar.isHidden = selectedAssets.isEmpty
     }
 }
