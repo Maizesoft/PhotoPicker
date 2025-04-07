@@ -8,7 +8,7 @@
 import UIKit
 import Photos
 
-class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UIPopoverPresentationControllerDelegate {
+class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate {
     var assets: [PHAsset] = []
     var selectedAssets: [PHAsset] = []
     var collections: [PHAssetCollection] = []
@@ -78,7 +78,15 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     
     func fetchCollection() {
         let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
-        collections = result.objects(at: IndexSet(integersIn: 0..<result.count))
+        result.enumerateObjects { collection, _, _ in
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+            fetchOptions.fetchLimit = 1 // we only care if it's non-empty
+            let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+            if result.count > 0 {
+                self.collections.append(collection)
+            }
+        }
         DispatchQueue.main.async {
             if self.collections.count > self.currentCollectionIndex, let title = self.collections[self.currentCollectionIndex].localizedTitle {
                 self.albumButton.setTitle(title, for: .normal)
@@ -129,6 +137,20 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
             }
         }
         return cell
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+        let assetsToCache = indexPaths.compactMap { indexPath in
+            indexPath.item < assets.count ? assets[indexPath.item] : nil
+        }
+        imageManager.startCachingImages(for: assetsToCache, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+        let assetsToStop = indexPaths.compactMap { indexPath in
+            indexPath.item < assets.count ? assets[indexPath.item] : nil
+        }
+        imageManager.stopCachingImages(for: assetsToStop, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
     }
 
     private func setupNavigationBar() {

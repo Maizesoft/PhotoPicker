@@ -12,6 +12,7 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
+        self.view.backgroundColor = UIColor.systemBackground
 
         let button = UIButton(type: .system)
         button.setTitle("Open Photo Picker", for: .normal)

@@ -13,12 +13,13 @@ class PhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDele
     var didSelectAlbum: ((PHAssetCollection, Int) -> Void)?
 
     private let tableView = UITableView()
+    private let rowHeight = 40.0
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         setupTableView()
-        preferredContentSize = CGSizeMake(200, CGFloat(collections.count) * 40.0)
+        preferredContentSize = CGSizeMake(200, CGFloat(collections.count) * rowHeight)
     }
 
     private func setupTableView() {
@@ -51,5 +52,9 @@ class PhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDele
         let selectedCollection = collections[indexPath.row]
         didSelectAlbum?(selectedCollection, indexPath.row)
         dismiss(animated: true, completion: nil)
+    }
+    
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return rowHeight
     }
 }
