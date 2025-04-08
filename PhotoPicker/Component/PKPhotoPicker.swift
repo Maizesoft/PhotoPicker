@@ -310,6 +310,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             case .asset, .image, .video:
                 return selectedAssets.count < options.selectionLimit
             case .camera:
+                self.navigationController?.pushViewController(CameraViewController(), animated: true)
                 return false
             }
             

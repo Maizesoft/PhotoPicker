@@ -4,6 +4,10 @@
 <dict>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We just need your photo</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We just need your photo</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We just need your photo</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
