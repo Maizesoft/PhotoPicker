@@ -131,22 +131,25 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     }
     
     func fetchCollection() {
-        let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
-        result.enumerateObjects { collection, _, _ in
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mediaType.rawValue)
-            fetchOptions.fetchLimit = 1 // we only care if it's non-empty
-            let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
-            if result.count > 0 {
-                self.collections.append(collection)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
+            result.enumerateObjects { collection, _, _ in
+                let fetchOptions = PHFetchOptions()
+                fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mediaType.rawValue)
+                fetchOptions.fetchLimit = 1 // we only care if it's non-empty
+                let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+                if result.count > 0 {
+                    self.collections.append(collection)
+                }
             }
-        }
-        DispatchQueue.main.async {
-            if self.collections.count > self.currentCollectionIndex, let title = self.collections[self.currentCollectionIndex].localizedTitle {
-                self.albumButton.setTitle(title, for: .normal)
-                self.albumButton.sizeToFit()
+            DispatchQueue.main.async {
+                if self.collections.count > self.currentCollectionIndex, let title = self.collections[self.currentCollectionIndex].localizedTitle {
+                    self.albumButton.setTitle(title, for: .normal)
+                    self.albumButton.sizeToFit()
+                }
+                self.fetchAssets()
             }
-            self.fetchAssets()
         }
     }
     
@@ -154,8 +157,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         guard self.collections.count > self.currentCollectionIndex else {
             return
         }
-        activityIndicator.startAnimating()
-        collectionView.isHidden = true
+        setLoading(true)
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mediaType.rawValue)
@@ -179,8 +181,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
                         self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
                     }
                 }
-                self.collectionView.isHidden = false
-                self.activityIndicator.stopAnimating()
+                self.setLoading(false)
             }
         }
     }
@@ -188,6 +189,19 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     func photoLibraryDidChange(_ changeInstance: PHChange) {
         if changeInstance.changeDetails(for: currentFetch) != nil {
             fetchAssets()
+        }
+    }
+    
+    private func setLoading(_ loading: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if loading {
+                self.activityIndicator.startAnimating()
+                self.collectionView.isHidden = true
+            } else {
+                self.collectionView.isHidden = false
+                self.activityIndicator.stopAnimating()
+            }
         }
     }
     
@@ -310,7 +324,8 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             case .asset, .image, .video:
                 return selectedAssets.count < options.selectionLimit
             case .camera:
-                self.navigationController?.pushViewController(CameraViewController(), animated: true)
+                let cameraVC = PKCameraViewController(options: PKCameraOptions(mode: options.mediaType == .image ? .photo : .video))
+                self.navigationController?.pushViewController(cameraVC, animated: true)
                 return false
             }
             

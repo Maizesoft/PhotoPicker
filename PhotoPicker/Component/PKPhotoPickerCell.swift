@@ -72,6 +72,7 @@ class PKPhotoPickerCell: UICollectionViewCell {
         ])
         
         contentView.insertSubview(scrimView, belowSubview: durationLabel)
+        scrimView.isHidden = true
         NSLayoutConstraint.activate([
             scrimView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrimView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -87,7 +88,9 @@ class PKPhotoPickerCell: UICollectionViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         imageView.image = nil
+        imageView.contentMode = .scaleAspectFill
         durationLabel.text = nil
+        scrimView.isHidden = true
     }
     
     override var isSelected: Bool {
@@ -111,7 +114,9 @@ class PKPhotoPickerCell: UICollectionViewCell {
         case .video:
             imageView.isHidden = true
         case .camera:
-            imageView.image = UIImage(systemName: "camera.circle.fill")
+            let config = UIImage.SymbolConfiguration(pointSize: 40, weight: .regular)
+            imageView.image = UIImage(systemName: "camera", withConfiguration: config)
+            imageView.contentMode = .center
         }
     }
     
