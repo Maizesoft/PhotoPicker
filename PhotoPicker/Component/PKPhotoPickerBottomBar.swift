@@ -5,7 +5,7 @@ class PKPhotoPickerBottomBar: UIView {
     var onConfirm: (() -> Void)?
     let scrollView = UIScrollView()
     let stackView = UIStackView()
-    var imageManager: PHCachingImageManager?
+    var imageCache: PHCachingImageManager?
     let cellSize = CGSizeMake(50, 50)
     let confirmButton = UIButton(type: .system)
     let contentContainer = UIView()
@@ -94,7 +94,7 @@ class PKPhotoPickerBottomBar: UIView {
             view.removeFromSuperview()
         }
         
-        guard let imageManager = imageManager else { return }
+        guard let imageManager = imageCache else { return }
         
         for item in items {
             let thumbImageView = UIImageView()

@@ -9,8 +9,13 @@ import UIKit
 import Photos
 
 struct PKPhotoPickerOptions {
+    enum PKPhotoPickerMode {
+        case photo
+        case video
+        case all
+    }
     let selectionLimit: Int
-    let mediaType: PHAssetMediaType
+    let mode: PKPhotoPickerMode
     let cameraEntry: Bool
 }
 
@@ -25,12 +30,60 @@ enum PKPhotoPickerItem: Equatable {
             return a1.localIdentifier == a2.localIdentifier
         case let (.image(i1), .image(i2)):
             return i1 === i2
-        case let (.video(v1), .video(v2)):
-            return v1 == v2
+        case let (.video(u1), .video(u2)):
+            return u1 == u2
         case (.camera, .camera):
             return true
         default:
             return false
+        }
+    }
+    
+    func exportAsset(manager: PHImageManager?) async -> PKPhotoPickerItem? {
+        await withCheckedContinuation { continuation in
+            let cache = manager ?? PHImageManager.default()
+            
+            if case .asset(let asset) = self {
+                if asset.mediaType == .video {
+                    let options = PHVideoRequestOptions()
+                    cache.requestExportSession(forVideo: asset, options: options, exportPreset: AVAssetExportPresetHighestQuality) { session, info in
+                        if let session = session {
+                            let tempDir = FileManager.default.temporaryDirectory
+                            let exportDir = tempDir.appendingPathComponent("PKPhotoPicker")
+                            try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
+                            
+                            let filename = UUID().uuidString + ".mp4"
+                            let outputURL = exportDir.appendingPathComponent(filename)
+                            session.outputURL = outputURL
+                            session.outputFileType = .mp4
+                            session.exportAsynchronously {
+                                if session.status == .completed {
+                                    continuation.resume(returning: .video(outputURL))
+                                } else {
+                                    continuation.resume(returning: nil)
+                                }
+                            }
+                        } else {
+                            continuation.resume(returning: nil)
+                        }
+                    }
+                } else if asset.mediaType == .image {
+                    let options = PHImageRequestOptions()
+                    options.deliveryMode = .highQualityFormat
+                    options.isSynchronous = true
+                    cache.requestImage(for: asset, targetSize: PHImageManagerMaximumSize, contentMode: .aspectFit, options: options) { image, info in
+                        if let image {
+                            continuation.resume(returning: .image(image))
+                        } else {
+                            continuation.resume(returning: nil)
+                        }
+                    }
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            } else {
+                continuation.resume(returning: nil)
+            }
         }
     }
 }
@@ -49,7 +102,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     private var collections: [PHAssetCollection] = []
     private var currentCollectionIndex = 0
     private let albumButton = UIButton(type: .system)
-    private let imageManager = PHCachingImageManager()
+    private let imageCache = PHCachingImageManager()
     private var cellImageSize: CGSize = CGSizeMake(100, 100)
     private let activityIndicator = UIActivityIndicatorView(style: .large)
     private let bottomBar = PKPhotoPickerBottomBar()
@@ -111,11 +164,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             bottomBar.heightAnchor.constraint(equalToConstant: 100)
         ])
         bottomBar.isHidden = true
-        bottomBar.imageManager = imageManager
+        bottomBar.imageCache = imageCache
         bottomBar.onConfirm = { [weak self] in
             guard let self = self else { return }
-            self.delegate?.photoPicker(self, didPick: self.selectedAssets)
-            dismiss(animated: true)
+            self.bottomBar.confirmButton.isEnabled = false
+            self.deliverSelectedItems()
         }
 
         PHPhotoLibrary.requestAuthorization { status in
@@ -127,7 +180,21 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        imageManager.stopCachingImagesForAllAssets()
+        imageCache.stopCachingImagesForAllAssets()
+    }
+    
+    private func deliverSelectedItems() {
+        Task {
+            var result = [PKPhotoPickerItem]()
+            for asset in self.selectedAssets {
+                if let item = await asset.exportAsset(manager: imageCache) {
+                    result.append(item)
+                }
+            }
+
+            self.delegate?.photoPicker(self, didPick: result)
+            dismiss(animated: true)
+        }
     }
     
     func fetchCollection() {
@@ -136,7 +203,9 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
             result.enumerateObjects { collection, _, _ in
                 let fetchOptions = PHFetchOptions()
-                fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mediaType.rawValue)
+                if self.options.mode != .all {
+                    fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
+                }
                 fetchOptions.fetchLimit = 1 // we only care if it's non-empty
                 let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
                 if result.count > 0 {
@@ -160,7 +229,9 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         setLoading(true)
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mediaType.rawValue)
+        if self.options.mode != .all {
+            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             self.currentFetch = PHAsset.fetchAssets(in: self.collections[self.currentCollectionIndex], options: fetchOptions)
@@ -218,7 +289,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoPickerCell", for: indexPath) as! PKPhotoPickerCell
-        cell.imageCache = imageManager
+        cell.imageCache = imageCache
         if let item = itemAtIndexPath(indexPath) {
             cell.configure(with: item, cellImageSize: cellImageSize)
         }
@@ -238,7 +309,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             }
             return nil
         }
-        imageManager.startCachingImages(for: assetsToCache, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
+        imageCache.startCachingImages(for: assetsToCache, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
     }
     
     func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
@@ -253,7 +324,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             }
             return nil
         }
-        imageManager.stopCachingImages(for: assetsToStop, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
+        imageCache.stopCachingImages(for: assetsToStop, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
     }
 
     private func setupNavigationBar() {
@@ -324,7 +395,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             case .asset, .image, .video:
                 return selectedAssets.count < options.selectionLimit
             case .camera:
-                let cameraVC = PKCameraViewController(options: PKCameraOptions(mode: options.mediaType == .image ? .photo : .video))
+                let cameraVC = PKCameraViewController(options: PKCameraOptions(mode: options.mode == .photo ? .photo : .video))
                 self.navigationController?.pushViewController(cameraVC, animated: true)
                 return false
             }
