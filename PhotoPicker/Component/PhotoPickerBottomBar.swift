@@ -2,10 +2,13 @@ import UIKit
 import Photos
 
 class PhotoPickerBottomBar: UIView {
+    var onConfirm: (() -> Void)?
     let scrollView = UIScrollView()
     let stackView = UIStackView()
     var imageManager: PHCachingImageManager?
     let cellSize = CGSizeMake(50, 50)
+    let confirmButton = UIButton(type: .system)
+    let contentContainer = UIView()
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -29,20 +32,41 @@ class PhotoPickerBottomBar: UIView {
             blurView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
-        addSubview(scrollView)
+        addSubview(contentContainer)
+        contentContainer.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            contentContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
+            contentContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
+            contentContainer.topAnchor.constraint(equalTo: topAnchor),
+            contentContainer.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
+        ])
+        
+        contentContainer.addSubview(scrollView)
+        
+        contentContainer.addSubview(confirmButton)
+        confirmButton.translatesAutoresizingMaskIntoConstraints = false
+        var config = UIButton.Configuration.filled()
+        config.title = "Confirm"
+        config.baseBackgroundColor = tintColor
+        config.baseForegroundColor = .white
+        config.cornerStyle = .medium
+        confirmButton.configuration = config
+        
+        confirmButton.addTarget(self, action: #selector(confirmButtonTapped), for: .touchUpInside)
+
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: self.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: self.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
+            scrollView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: confirmButton.leadingAnchor, constant: -8),
+            scrollView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
         ])
         
         scrollView.addSubview(stackView)
         stackView.axis = .horizontal
         stackView.alignment = .center
-        stackView.spacing = 8
+        stackView.spacing = 5
         stackView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 8),
@@ -51,9 +75,19 @@ class PhotoPickerBottomBar: UIView {
             stackView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
             stackView.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
         ])
+        
+        NSLayoutConstraint.activate([
+            confirmButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -12),
+            confirmButton.centerYAnchor.constraint(equalTo: contentContainer.centerYAnchor),
+            confirmButton.heightAnchor.constraint(equalToConstant: 36),
+        ])
     }
     
-    func update(with assets: [PHAsset]) {
+    @objc private func confirmButtonTapped() {
+        onConfirm?()
+    }
+    
+    func update(with items: [PhotoPickerItem]) {
         // Remove all existing thumbnails
         for view in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(view)
@@ -62,19 +96,25 @@ class PhotoPickerBottomBar: UIView {
         
         guard let imageManager = imageManager else { return }
         
-        for asset in assets {
+        for item in items {
             let thumbImageView = UIImageView()
-            thumbImageView.layer.borderColor = UIColor.white.cgColor
-            thumbImageView.layer.borderWidth = 2
+            thumbImageView.layer.borderColor = UIColor.systemFill.cgColor
+            thumbImageView.layer.borderWidth = 1
             thumbImageView.contentMode = .scaleAspectFill
             thumbImageView.clipsToBounds = true
             thumbImageView.translatesAutoresizingMaskIntoConstraints = false
             thumbImageView.widthAnchor.constraint(equalToConstant: cellSize.width).isActive = true
             thumbImageView.heightAnchor.constraint(equalToConstant: cellSize.height).isActive = true
             stackView.addArrangedSubview(thumbImageView)
-            
-            imageManager.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
+            switch item {
+            case let .asset(asset):
+                imageManager.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
+                    thumbImageView.image = image
+                }
+            case let .image(image):
                 thumbImageView.image = image
+            default:
+                break
             }
         }
     }

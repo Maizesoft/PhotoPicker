@@ -8,19 +8,53 @@
 import UIKit
 import Photos
 
-class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate {
-    var assets: [PHAsset] = []
-    var selectedAssets: [PHAsset] = []
-    var collections: [PHAssetCollection] = []
-    var currentCollectionIndex = 0
-    let albumButton = UIButton(type: .system)
-    let imageManager = PHCachingImageManager()
-    var cellImageSize: CGSize = CGSizeMake(100, 100)
-    var mediaType: PHAssetMediaType = .image
-    let activityIndicator = UIActivityIndicatorView(style: .large)
-    let bottomBar = PhotoPickerBottomBar()
+struct PhotoPickerOptions {
+    let selectionLimit: Int
+    let mediaType: PHAssetMediaType
+    let cameraEntry: Bool
+}
 
-    let collectionView: UICollectionView = {
+enum PhotoPickerItem: Equatable {
+    case asset(PHAsset)
+    case image(UIImage)
+    case video(URL)
+    case camera
+    static func == (lhs: PhotoPickerItem, rhs: PhotoPickerItem) -> Bool {
+        switch (lhs, rhs) {
+        case let (.asset(a1), .asset(a2)):
+            return a1.localIdentifier == a2.localIdentifier
+        case let (.image(i1), .image(i2)):
+            return i1 === i2
+        case let (.video(v1), .video(v2)):
+            return v1 == v2
+        case (.camera, .camera):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+protocol PhotoPickerDelegate: AnyObject {
+    func photoPicker(_ picker: PhotoPicker, didPick items: [PhotoPickerItem])
+    func photoPickerDidCancel(_ picker: PhotoPicker)
+}
+
+class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate, PHPhotoLibraryChangeObserver {
+    let options: PhotoPickerOptions
+    weak var delegate: PhotoPickerDelegate?
+    private var currentItems: [PhotoPickerItem] = []
+    private var currentFetch = PHFetchResult<PHAsset>()
+    private var selectedAssets: [PhotoPickerItem] = []
+    private var collections: [PHAssetCollection] = []
+    private var currentCollectionIndex = 0
+    private let albumButton = UIButton(type: .system)
+    private let imageManager = PHCachingImageManager()
+    private var cellImageSize: CGSize = CGSizeMake(100, 100)
+    private let activityIndicator = UIActivityIndicatorView(style: .large)
+    private let bottomBar = PhotoPickerBottomBar()
+
+    private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
         let spacing: CGFloat = 1
         let side = (UIScreen.main.bounds.width - 2 * spacing) / 3
@@ -29,9 +63,19 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         layout.minimumLineSpacing = spacing
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }()
-
+    
+    init(options: PhotoPickerOptions) {
+        self.options = options
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.backgroundColor = .systemBackground
         setupNavigationBar()
         view.addSubview(collectionView)
         collectionView.register(PhotoPickerCell.self, forCellWithReuseIdentifier: "PhotoPickerCell")
@@ -58,7 +102,6 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
             activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
         
-        // 4. Setup the bottom bar.
         view.addSubview(bottomBar)
         bottomBar.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -69,18 +112,29 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         ])
         bottomBar.isHidden = true
         bottomBar.imageManager = imageManager
+        bottomBar.onConfirm = { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.photoPicker(self, didPick: self.selectedAssets)
+            dismiss(animated: true)
+        }
 
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized || status == .limited else { return }
             self.fetchCollection()
+            PHPhotoLibrary.shared().register(self)
         }
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        imageManager.stopCachingImagesForAllAssets()
     }
     
     func fetchCollection() {
         let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
         result.enumerateObjects { collection, _, _ in
             let fetchOptions = PHFetchOptions()
-            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+            fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mediaType.rawValue)
             fetchOptions.fetchLimit = 1 // we only care if it's non-empty
             let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
             if result.count > 0 {
@@ -97,65 +151,99 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     }
     
     func fetchAssets() {
+        guard self.collections.count > self.currentCollectionIndex else {
+            return
+        }
         activityIndicator.startAnimating()
+        collectionView.isHidden = true
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        fetchOptions.predicate = NSPredicate(format: "mediaType == %d", mediaType.rawValue)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = PHAsset.fetchAssets(in: self.collections[self.currentCollectionIndex], options: fetchOptions)
-            var fetchedAssets: [PHAsset] = []
-            result.enumerateObjects { asset, _, _ in
-                fetchedAssets.append(asset)
+        fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mediaType.rawValue)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            self.currentFetch = PHAsset.fetchAssets(in: self.collections[self.currentCollectionIndex], options: fetchOptions)
+            var fetchedAssets: [PhotoPickerItem] = []
+            if options.cameraEntry {
+                fetchedAssets.append(.camera)
+            }
+            self.currentFetch.enumerateObjects { asset, _, _ in
+                fetchedAssets.append(.asset(asset))
             }
             DispatchQueue.main.async {
-                self.assets = fetchedAssets
+                self.currentItems = fetchedAssets
                 self.collectionView.reloadData()
                 // restore selection
-                for (index, asset) in self.assets.enumerated() {
-                    if self.selectedAssets.contains(where: { $0.localIdentifier == asset.localIdentifier }) {
+                for (index, item) in self.currentItems.enumerated() {
+                    if self.selectedAssets.contains(item) {
                         let indexPath = IndexPath(item: index, section: 0)
                         self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
                     }
                 }
-                
+                self.collectionView.isHidden = false
                 self.activityIndicator.stopAnimating()
             }
         }
     }
     
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        if changeInstance.changeDetails(for: currentFetch) != nil {
+            fetchAssets()
+        }
+    }
+    
+    private func itemAtIndexPath(_ indexPath: IndexPath) -> PhotoPickerItem? {
+        guard indexPath.item < currentItems.count else {
+            return nil
+        }
+        return currentItems[indexPath.item]
+    }
+    
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return assets.count
+        return currentItems.count
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoPickerCell", for: indexPath) as! PhotoPickerCell
-        let asset = assets[indexPath.item]
-        cell.representedAssetIdentifier = asset.localIdentifier
-        imageManager.requestImage(for: asset, targetSize: cellImageSize, contentMode: .aspectFill, options: nil) { image, _ in
-            if cell.representedAssetIdentifier == asset.localIdentifier {
-                cell.imageView.image = image
-            }
+        cell.imageCache = imageManager
+        if let item = itemAtIndexPath(indexPath) {
+            cell.configure(with: item, cellImageSize: cellImageSize)
         }
+        
         return cell
     }
     
     func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
         let assetsToCache = indexPaths.compactMap { indexPath in
-            indexPath.item < assets.count ? assets[indexPath.item] : nil
+            if let item = itemAtIndexPath(indexPath) {
+                switch item {
+                case .asset(let asset):
+                    return asset
+                default:
+                    return nil
+                }
+            }
+            return nil
         }
         imageManager.startCachingImages(for: assetsToCache, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
     }
     
     func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
         let assetsToStop = indexPaths.compactMap { indexPath in
-            indexPath.item < assets.count ? assets[indexPath.item] : nil
+            if let item = itemAtIndexPath(indexPath) {
+                switch item {
+                case .asset(let asset):
+                    return asset
+                default:
+                    return nil
+                }
+            }
+            return nil
         }
         imageManager.stopCachingImages(for: assetsToStop, targetSize: cellImageSize, contentMode: .aspectFill, options: nil)
     }
 
     private func setupNavigationBar() {
         navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(dismissPicker))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Confirm", style: .done, target: self, action: #selector(confirm))
         albumButton.addTarget(self, action: #selector(showAlbumSelection), for: .touchUpInside)
         let config = UIImage.SymbolConfiguration(scale: .small)
         let chevron = UIImage(systemName: "chevron.down", withConfiguration: config)
@@ -166,11 +254,9 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     }
 
     @objc private func dismissPicker() {
-        dismiss(animated: true, completion: nil)
-    }
-
-    @objc private func confirm() {
-        // Implement confirmation logic here
+        dismiss(animated: true) {
+            self.delegate?.photoPickerDidCancel(self)
+        }
     }
 
     @objc private func showAlbumSelection() {
@@ -201,22 +287,40 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     
     // Update selection delegate methods to update the bottom bar.
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        guard indexPath.item < assets.count else { return }
-        let asset = assets[indexPath.item]
-        if !selectedAssets.contains(where: { $0.localIdentifier == asset.localIdentifier }) {
-            selectedAssets.append(asset)
+        if let item = itemAtIndexPath(indexPath) {
+            if !selectedAssets.contains(item) {
+                selectedAssets.append(item)
+            }
+            updateBottomBar()
         }
-        bottomBar.update(with: selectedAssets)
-        bottomBar.isHidden = selectedAssets.isEmpty
     }
     
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
-        guard indexPath.item < assets.count else { return }
-        let asset = assets[indexPath.item]
-        if let index = selectedAssets.firstIndex(of: asset) {
-            selectedAssets.remove(at: index)
+        if let item = itemAtIndexPath(indexPath) {
+            if let index = selectedAssets.firstIndex(of: item) {
+                selectedAssets.remove(at: index)
+            }
+            updateBottomBar()
         }
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+        if let item = itemAtIndexPath(indexPath) {
+            switch item {
+            case .asset, .image, .video:
+                return selectedAssets.count < options.selectionLimit
+            case .camera:
+                return false
+            }
+            
+        }
+        return false
+    }
+    
+    func updateBottomBar() {
         bottomBar.update(with: selectedAssets)
         bottomBar.isHidden = selectedAssets.isEmpty
+        let bottomInset = bottomBar.isHidden ? 0 : (bottomBar.bounds.height - view.safeAreaInsets.bottom)
+        collectionView.contentInset.bottom = max(bottomInset, 0)
     }
 }
