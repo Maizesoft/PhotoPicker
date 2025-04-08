@@ -12,6 +12,8 @@ class PhotoPickerCell: UICollectionViewCell {
     var representedAssetIdentifier: String?
     var imageCache: PHCachingImageManager?
     
+    private let scrimView = GradientView(colors: [UIColor.black.withAlphaComponent(0.6), UIColor.clear])
+    
     let imageView: UIImageView = {
         let iv = UIImageView()
         iv.contentMode = .scaleAspectFill
@@ -68,6 +70,14 @@ class PhotoPickerCell: UICollectionViewCell {
             durationLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
             durationLabel.heightAnchor.constraint(equalToConstant: 20)
         ])
+        
+        contentView.insertSubview(scrimView, belowSubview: durationLabel)
+        NSLayoutConstraint.activate([
+            scrimView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            scrimView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            scrimView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            scrimView.heightAnchor.constraint(equalToConstant: 25)
+        ])
     }
 
     required init?(coder: NSCoder) {
@@ -77,6 +87,7 @@ class PhotoPickerCell: UICollectionViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         imageView.image = nil
+        durationLabel.text = nil
     }
     
     override var isSelected: Bool {
@@ -113,5 +124,7 @@ class PhotoPickerCell: UICollectionViewCell {
         } else {
             durationLabel.isHidden = true
         }
+        scrimView.isHidden = durationLabel.isHidden
+        scrimView.layer.sublayers?.first?.frame = scrimView.bounds
     }
 }
