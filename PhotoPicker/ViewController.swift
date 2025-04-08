@@ -8,7 +8,7 @@
 import UIKit
 import Photos
 
-class ViewController: UIViewController, PhotoPickerDelegate {
+class ViewController: UIViewController, PKPhotoPickerDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
@@ -41,7 +41,7 @@ class ViewController: UIViewController, PhotoPickerDelegate {
 
     @objc func presentPhotoPicker(_ sender: UIButton) {
         let isVideo = sender.title(for: .normal)?.contains("Video") == true
-        let picker = PhotoPicker(options: PhotoPickerOptions(
+        let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
             selectionLimit: 3,
             mediaType: isVideo ? .video : .image,
             cameraEntry: true
@@ -51,11 +51,11 @@ class ViewController: UIViewController, PhotoPickerDelegate {
         present(navController, animated: true, completion: nil)
     }
     
-    func photoPicker(_ picker: PhotoPicker, didPick items: [PhotoPickerItem]) {
+    func photoPicker(_ picker: PKPhotoPicker, didPick items: [PKPhotoPickerItem]) {
         
     }
     
-    func photoPickerDidCancel(_ picker: PhotoPicker) {
+    func photoPickerDidCancel(_ picker: PKPhotoPicker) {
         
     }
     

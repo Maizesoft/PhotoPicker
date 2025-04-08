@@ -8,11 +8,11 @@
 import UIKit
 import Photos
 
-class PhotoPickerCell: UICollectionViewCell {
+class PKPhotoPickerCell: UICollectionViewCell {
     var representedAssetIdentifier: String?
     var imageCache: PHCachingImageManager?
     
-    private let scrimView = GradientView(colors: [UIColor.black.withAlphaComponent(0.6), UIColor.clear])
+    private let scrimView = PKGradientView(colors: [UIColor.black.withAlphaComponent(0.6), UIColor.clear])
     
     let imageView: UIImageView = {
         let iv = UIImageView()
@@ -96,7 +96,7 @@ class PhotoPickerCell: UICollectionViewCell {
         }
     }
     
-    func configure(with item: PhotoPickerItem, cellImageSize: CGSize) {
+    func configure(with item: PKPhotoPickerItem, cellImageSize: CGSize) {
         switch item {
         case .asset(let asset):
             representedAssetIdentifier = asset.localIdentifier

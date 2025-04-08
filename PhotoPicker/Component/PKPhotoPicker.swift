@@ -8,18 +8,18 @@
 import UIKit
 import Photos
 
-struct PhotoPickerOptions {
+struct PKPhotoPickerOptions {
     let selectionLimit: Int
     let mediaType: PHAssetMediaType
     let cameraEntry: Bool
 }
 
-enum PhotoPickerItem: Equatable {
+enum PKPhotoPickerItem: Equatable {
     case asset(PHAsset)
     case image(UIImage)
     case video(URL)
     case camera
-    static func == (lhs: PhotoPickerItem, rhs: PhotoPickerItem) -> Bool {
+    static func == (lhs: PKPhotoPickerItem, rhs: PKPhotoPickerItem) -> Bool {
         switch (lhs, rhs) {
         case let (.asset(a1), .asset(a2)):
             return a1.localIdentifier == a2.localIdentifier
@@ -35,24 +35,24 @@ enum PhotoPickerItem: Equatable {
     }
 }
 
-protocol PhotoPickerDelegate: AnyObject {
-    func photoPicker(_ picker: PhotoPicker, didPick items: [PhotoPickerItem])
-    func photoPickerDidCancel(_ picker: PhotoPicker)
+protocol PKPhotoPickerDelegate: AnyObject {
+    func photoPicker(_ picker: PKPhotoPicker, didPick items: [PKPhotoPickerItem])
+    func photoPickerDidCancel(_ picker: PKPhotoPicker)
 }
 
-class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate, PHPhotoLibraryChangeObserver {
-    let options: PhotoPickerOptions
-    weak var delegate: PhotoPickerDelegate?
-    private var currentItems: [PhotoPickerItem] = []
+class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate, PHPhotoLibraryChangeObserver {
+    let options: PKPhotoPickerOptions
+    weak var delegate: PKPhotoPickerDelegate?
+    private var currentItems: [PKPhotoPickerItem] = []
     private var currentFetch = PHFetchResult<PHAsset>()
-    private var selectedAssets: [PhotoPickerItem] = []
+    private var selectedAssets: [PKPhotoPickerItem] = []
     private var collections: [PHAssetCollection] = []
     private var currentCollectionIndex = 0
     private let albumButton = UIButton(type: .system)
     private let imageManager = PHCachingImageManager()
     private var cellImageSize: CGSize = CGSizeMake(100, 100)
     private let activityIndicator = UIActivityIndicatorView(style: .large)
-    private let bottomBar = PhotoPickerBottomBar()
+    private let bottomBar = PKPhotoPickerBottomBar()
 
     private let collectionView: UICollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -64,7 +64,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }()
     
-    init(options: PhotoPickerOptions) {
+    init(options: PKPhotoPickerOptions) {
         self.options = options
         super.init(nibName: nil, bundle: nil)
     }
@@ -78,7 +78,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         view.backgroundColor = .systemBackground
         setupNavigationBar()
         view.addSubview(collectionView)
-        collectionView.register(PhotoPickerCell.self, forCellWithReuseIdentifier: "PhotoPickerCell")
+        collectionView.register(PKPhotoPickerCell.self, forCellWithReuseIdentifier: "PhotoPickerCell")
         collectionView.dataSource = self
         collectionView.delegate = self
         collectionView.allowsMultipleSelection = true
@@ -162,7 +162,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             self.currentFetch = PHAsset.fetchAssets(in: self.collections[self.currentCollectionIndex], options: fetchOptions)
-            var fetchedAssets: [PhotoPickerItem] = []
+            var fetchedAssets: [PKPhotoPickerItem] = []
             if options.cameraEntry {
                 fetchedAssets.append(.camera)
             }
@@ -191,7 +191,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
         }
     }
     
-    private func itemAtIndexPath(_ indexPath: IndexPath) -> PhotoPickerItem? {
+    private func itemAtIndexPath(_ indexPath: IndexPath) -> PKPhotoPickerItem? {
         guard indexPath.item < currentItems.count else {
             return nil
         }
@@ -203,7 +203,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoPickerCell", for: indexPath) as! PhotoPickerCell
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PhotoPickerCell", for: indexPath) as! PKPhotoPickerCell
         cell.imageCache = imageManager
         if let item = itemAtIndexPath(indexPath) {
             cell.configure(with: item, cellImageSize: cellImageSize)
@@ -260,7 +260,7 @@ class PhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionVie
     }
 
     @objc private func showAlbumSelection() {
-        let albumPicker = PhotoAlbumPicker()
+        let albumPicker = PKPhotoAlbumPicker()
         albumPicker.collections = self.collections
         albumPicker.didSelectAlbum = { [weak self] selectedCollection, index in
             guard let self = self else { return }

@@ -1,7 +1,7 @@
 import UIKit
 import Photos
 
-class PhotoPickerBottomBar: UIView {
+class PKPhotoPickerBottomBar: UIView {
     var onConfirm: (() -> Void)?
     let scrollView = UIScrollView()
     let stackView = UIStackView()
@@ -87,7 +87,7 @@ class PhotoPickerBottomBar: UIView {
         onConfirm?()
     }
     
-    func update(with items: [PhotoPickerItem]) {
+    func update(with items: [PKPhotoPickerItem]) {
         // Remove all existing thumbnails
         for view in stackView.arrangedSubviews {
             stackView.removeArrangedSubview(view)

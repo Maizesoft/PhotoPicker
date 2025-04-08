@@ -8,7 +8,7 @@
 import UIKit
 import Photos
 
-class PhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDelegate {
+class PKPhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDelegate {
     var collections: [PHAssetCollection] = []
     var didSelectAlbum: ((PHAssetCollection, Int) -> Void)?
 

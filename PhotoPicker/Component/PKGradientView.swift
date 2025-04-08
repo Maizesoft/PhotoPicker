@@ -7,7 +7,7 @@
 
 import UIKit
 
-final class GradientView: UIView {
+final class PKGradientView: UIView {
     override class var layerClass: AnyClass {
         return CAGradientLayer.self
     }
