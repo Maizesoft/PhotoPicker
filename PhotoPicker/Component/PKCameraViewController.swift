@@ -16,11 +16,18 @@ struct PKCameraOptions {
     let mode: PKCameraMode
 }
 
+protocol PKCameraViewControllerDelegate: AnyObject {
+    func cameraViewController(_ cameraVC: PKCameraViewController, didFinishWith photo: UIImage)
+    func cameraViewController(_ cameraVC: PKCameraViewController, didFinishWith videoURL: URL)
+}
+
 class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
-    let options: PKCameraOptions
-    let session = AVCaptureSession()
-    let photoOutput = AVCapturePhotoOutput()
-    let movieOutput = AVCaptureMovieFileOutput()
+    private let options: PKCameraOptions
+    private let session = AVCaptureSession()
+    private let photoOutput = AVCapturePhotoOutput()
+    private let movieOutput = AVCaptureMovieFileOutput()
+    private let preview = PKCameraPreview()
+    weak var delegate: PKCameraViewControllerDelegate?
     
     var isRecording = false
     
@@ -42,11 +49,16 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         self.navigationItem.hidesBackButton = true
         
         checkPermissionAndSetup()
+        setupViews()
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        self.session.stopRunning()
     }
 
     func checkPermissionAndSetup() {
@@ -59,6 +71,66 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             }
         default:
             break
+        }
+    }
+    
+    func setupViews() {
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(preview, at: 0)
+        NSLayoutConstraint.activate([
+            preview.topAnchor.constraint(equalTo: view.topAnchor),
+            preview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
+        
+        let bottomBar = UIView()
+        bottomBar.backgroundColor = UIColor.systemGray5.withAlphaComponent(0.7)
+        bottomBar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(bottomBar)
+        NSLayoutConstraint.activate([
+            bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            bottomBar.heightAnchor.constraint(equalToConstant: 150)
+        ])
+        
+        let buttonContainer = UIView()
+        buttonContainer.translatesAutoresizingMaskIntoConstraints = false
+        bottomBar.addSubview(buttonContainer)
+        NSLayoutConstraint.activate([
+            buttonContainer.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor),
+            buttonContainer.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor),
+            buttonContainer.topAnchor.constraint(equalTo: bottomBar.topAnchor),
+            buttonContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        ])
+
+        let shutterButton = PKCameraShutterButton(mode: options.mode)
+        shutterButton.translatesAutoresizingMaskIntoConstraints = false
+        shutterButton.onTap = {
+            self.capturePhoto()
+        }
+        buttonContainer.addSubview(shutterButton)
+        NSLayoutConstraint.activate([
+            shutterButton.centerXAnchor.constraint(equalTo: buttonContainer.centerXAnchor),
+            shutterButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor)
+        ])
+
+        let flipButton = UIButton(type: .system)
+        flipButton.translatesAutoresizingMaskIntoConstraints = false
+        let flipImage = UIImage(systemName: "arrow.trianglehead.2.clockwise.rotate.90.camera.fill")
+        flipButton.setImage(flipImage, for: .normal)
+        flipButton.addTarget(self, action: #selector(switchCameraTapped), for: .touchUpInside)
+        buttonContainer.addSubview(flipButton)
+        NSLayoutConstraint.activate([
+            flipButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor),
+            flipButton.trailingAnchor.constraint(equalTo: buttonContainer.trailingAnchor, constant: -20)
+        ])
+    }
+
+    @objc private func switchCameraTapped() {
+        DispatchQueue.global().async {
+            self.switchCamera()
         }
     }
 
@@ -75,27 +147,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         session.addOutput(photoOutput)
         session.addOutput(movieOutput)
         session.commitConfiguration()
-
-        let preview = PKCameraPreview(session: session)
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(preview)
-        NSLayoutConstraint.activate([
-            preview.topAnchor.constraint(equalTo: view.topAnchor),
-            preview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-        
-        let shutterButton = PKCameraShutterButton(mode: options.mode)
-        shutterButton.translatesAutoresizingMaskIntoConstraints = false
-        shutterButton.onTap = {
-            self.capturePhoto()
-        }
-        view.addSubview(shutterButton)
-        NSLayoutConstraint.activate([
-            shutterButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            shutterButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
-        ])
+        preview.setSession(session)
         
         DispatchQueue.global().async {
             self.session.startRunning()
@@ -117,26 +169,19 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         session.commitConfiguration()
     }
 
-    @objc func capturePhoto() {
+    func capturePhoto() {
+        preview.flashShutterEffect()
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        guard let data = photo.fileDataRepresentation(),
-              let image = UIImage(data: data) else { return }
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-    }
-
-    @objc func toggleRecording() {
-        if isRecording {
-            movieOutput.stopRecording()
-            isRecording = false
-        } else {
-            let outputPath = NSTemporaryDirectory() + UUID().uuidString + ".mov"
-            let outputURL = URL(fileURLWithPath: outputPath)
-            movieOutput.startRecording(to: outputURL, recordingDelegate: self)
-            isRecording = true
+        DispatchQueue.global().async {
+            guard let cgImage = photo.cgImageRepresentation() else { return }
+            let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+            DispatchQueue.main.async {
+                self.delegate?.cameraViewController(self, didFinishWith: image)
+            }
         }
     }
 
@@ -149,6 +194,6 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        UISaveVideoAtPathToSavedPhotosAlbum(outputFileURL.path, nil, nil, nil)
+        //UISaveVideoAtPathToSavedPhotosAlbum(outputFileURL.path, nil, nil, nil)
     }
 }

@@ -71,6 +71,7 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
         ))
         picker.delegate = self
         let navController = UINavigationController(rootViewController: picker)
+        navController.modalPresentationStyle = .fullScreen
         present(navController, animated: true, completion: nil)
     }
     

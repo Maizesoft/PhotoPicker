@@ -68,7 +68,6 @@ class PKCameraShutterButton: UIControl {
     }
 
     @objc private func touchDown() {
-        
         softHaptics?.impactOccurred(intensity: 0.7)
         UIView.animate(withDuration: 0.1) {
             self.innerCircle.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
@@ -76,7 +75,6 @@ class PKCameraShutterButton: UIControl {
     }
 
     @objc private func touchUp() {
-        
         rigidHaptics?.impactOccurred(intensity: 0.9)
         UIView.animate(withDuration: 0.1) {
             self.innerCircle.transform = .identity

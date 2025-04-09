@@ -84,6 +84,12 @@ class PKPhotoPickerBottomBar: UIView {
     }
     
     @objc private func confirmButtonTapped() {
+        if var config = confirmButton.configuration {
+            config.showsActivityIndicator = true
+            config.title = nil
+            confirmButton.configuration = config
+        }
+        confirmButton.isEnabled = false
         onConfirm?()
     }
     

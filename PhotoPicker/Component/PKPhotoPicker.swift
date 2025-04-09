@@ -46,18 +46,17 @@ enum PKPhotoPickerItem: Equatable {
             if case .asset(let asset) = self {
                 if asset.mediaType == .video {
                     let options = PHVideoRequestOptions()
-                    cache.requestExportSession(forVideo: asset, options: options, exportPreset: AVAssetExportPresetHighestQuality) { session, info in
+                    options.deliveryMode = .fastFormat
+                    print("requestExportSession")
+                    cache.requestExportSession(forVideo: asset, options: options, exportPreset: AVAssetExportPresetPassthrough) { session, info in
                         if let session = session {
-                            let tempDir = FileManager.default.temporaryDirectory
-                            let exportDir = tempDir.appendingPathComponent("PKPhotoPicker")
-                            try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
-                            
-                            let filename = UUID().uuidString + ".mp4"
-                            let outputURL = exportDir.appendingPathComponent(filename)
+                            let outputURL = PKPhotoPicker.tempFileURL(UUID().uuidString, withExtension: "mp4")
                             session.outputURL = outputURL
                             session.outputFileType = .mp4
+                            print("session.exportAsynchronously")
                             session.exportAsynchronously {
                                 if session.status == .completed {
+                                    print(outputURL)
                                     continuation.resume(returning: .video(outputURL))
                                 } else {
                                     continuation.resume(returning: nil)
@@ -81,6 +80,8 @@ enum PKPhotoPickerItem: Equatable {
                 } else {
                     continuation.resume(returning: nil)
                 }
+            } else if case .image(let image) = self {
+                continuation.resume(returning: .image(image))
             } else {
                 continuation.resume(returning: nil)
             }
@@ -93,7 +94,8 @@ protocol PKPhotoPickerDelegate: AnyObject {
     func photoPickerDidCancel(_ picker: PKPhotoPicker)
 }
 
-class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate, PHPhotoLibraryChangeObserver {
+class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDataSourcePrefetching, UIPopoverPresentationControllerDelegate, PHPhotoLibraryChangeObserver, PKCameraViewControllerDelegate {
+    
     let options: PKPhotoPickerOptions
     weak var delegate: PKPhotoPickerDelegate?
     private var currentItems: [PKPhotoPickerItem] = []
@@ -167,7 +169,6 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         bottomBar.imageCache = imageCache
         bottomBar.onConfirm = { [weak self] in
             guard let self = self else { return }
-            self.bottomBar.confirmButton.isEnabled = false
             self.deliverSelectedItems()
         }
 
@@ -185,6 +186,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     private func deliverSelectedItems() {
         Task {
+            PKPhotoPicker.clearTempDirectory()
             var result = [PKPhotoPickerItem]()
             for asset in self.selectedAssets {
                 if let item = await asset.exportAsset(manager: imageCache) {
@@ -396,6 +398,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
                 return selectedAssets.count < options.selectionLimit
             case .camera:
                 let cameraVC = PKCameraViewController(options: PKCameraOptions(mode: options.mode == .photo ? .photo : .video))
+                cameraVC.delegate = self
                 self.navigationController?.pushViewController(cameraVC, animated: true)
                 return false
             }
@@ -404,10 +407,40 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         return false
     }
     
+    func cameraViewController(_ controller: PKCameraViewController, didFinishWith photo: UIImage) {
+        self.selectedAssets.append(.image(photo))
+        deliverSelectedItems()
+    }
+    
+    func cameraViewController(_ controller: PKCameraViewController, didFinishWith videoURL: URL) {
+        
+    }
+    
     func updateBottomBar() {
         bottomBar.update(with: selectedAssets)
         bottomBar.isHidden = selectedAssets.isEmpty
         let bottomInset = bottomBar.isHidden ? 0 : (bottomBar.bounds.height - view.safeAreaInsets.bottom)
         collectionView.contentInset.bottom = max(bottomInset, 0)
+    }
+    
+    static var tempDirectoryURL: URL {
+        let tempDir = FileManager.default.temporaryDirectory
+        let exportDir = tempDir.appendingPathComponent(String(describing: PKPhotoPicker.self))
+        try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
+        return exportDir
+    }
+    
+    static func tempFileURL(_ filename: String, withExtension ext: String) -> URL {
+        tempDirectoryURL.appendingPathComponent(filename + "." + ext)
+    }
+    
+    static func clearTempDirectory() {
+        let directory = tempDirectoryURL
+        let fileManager = FileManager.default
+        if let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+            for file in files {
+                try? fileManager.removeItem(at: file)
+            }
+        }
     }
 }
