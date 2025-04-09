@@ -14,6 +14,7 @@ struct PKCameraOptions {
         case video
     }
     let mode: PKCameraMode
+    let position: AVCaptureDevice.Position
 }
 
 protocol PKCameraViewControllerDelegate: AnyObject {
@@ -135,7 +136,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     func setupCamera() {
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: options.position),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input),
               session.canAddOutput(photoOutput),

@@ -397,12 +397,15 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             case .asset, .image, .video:
                 return selectedAssets.count < options.selectionLimit
             case .camera:
-                let cameraVC = PKCameraViewController(options: PKCameraOptions(mode: options.mode == .photo ? .photo : .video))
+                let cameraVC = PKCameraViewController(
+                    options: PKCameraOptions(
+                        mode: options.mode == .photo ? .photo : .video,
+                        position: .back
+                    )
+                )
                 cameraVC.delegate = self
                 self.navigationController?.pushViewController(cameraVC, animated: true)
-                return false
             }
-            
         }
         return false
     }
