@@ -75,15 +75,6 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
     
     func setupViews() {
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        view.insertSubview(preview, at: 0)
-        NSLayoutConstraint.activate([
-            preview.topAnchor.constraint(equalTo: view.topAnchor),
-            preview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-        
         let bottomBar = UIView()
         bottomBar.backgroundColor = UIColor.systemGray5.withAlphaComponent(0.7)
         bottomBar.translatesAutoresizingMaskIntoConstraints = false
@@ -93,6 +84,15 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             bottomBar.heightAnchor.constraint(equalToConstant: 150)
+        ])
+        
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(preview, at: 0)
+        NSLayoutConstraint.activate([
+            preview.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            preview.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
+            preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
         
         let buttonContainer = UIView()
