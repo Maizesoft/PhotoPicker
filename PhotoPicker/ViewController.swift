@@ -65,7 +65,6 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
     @objc func presentPhotoPicker(_ sender: UIButton) {
         let isVideo = sender.title(for: .normal)?.contains("Video") == true
         let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
-            selectionLimit: 5,
             mode: isVideo ? .video : .photo,
             cameraEntry: true
         ))

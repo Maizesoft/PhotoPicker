@@ -119,6 +119,9 @@ class PKPhotoPickerBottomBar: UIView {
                 }
             case let .image(image):
                 thumbImageView.image = image
+            case let .video(url):
+                thumbImageView.contentMode = .scaleAspectFit
+                thumbImageView.image = UIImage(systemName: "video")
             default:
                 break
             }

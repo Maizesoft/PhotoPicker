@@ -17,6 +17,12 @@ struct PKPhotoPickerOptions {
     let selectionLimit: Int
     let mode: PKPhotoPickerMode
     let cameraEntry: Bool
+    
+    init(selectionLimit: Int = 5, mode: PKPhotoPickerMode, cameraEntry: Bool = true) {
+        self.selectionLimit = selectionLimit
+        self.mode = mode
+        self.cameraEntry = cameraEntry
+    }
 }
 
 enum PKPhotoPickerItem: Equatable {
@@ -100,7 +106,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     weak var delegate: PKPhotoPickerDelegate?
     private var currentItems: [PKPhotoPickerItem] = []
     private var currentFetch = PHFetchResult<PHAsset>()
-    private var selectedAssets: [PKPhotoPickerItem] = []
+    private var selectedItems: [PKPhotoPickerItem] = []
     private var collections: [PHAssetCollection] = []
     private var currentCollectionIndex = 0
     private let albumButton = UIButton(type: .system)
@@ -188,7 +194,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         Task {
             PKPhotoPicker.clearTempDirectory()
             var result = [PKPhotoPickerItem]()
-            for asset in self.selectedAssets {
+            for asset in self.selectedItems {
                 if let item = await asset.exportAsset(manager: imageCache) {
                     result.append(item)
                 }
@@ -249,7 +255,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
                 self.collectionView.reloadData()
                 // restore selection
                 for (index, item) in self.currentItems.enumerated() {
-                    if self.selectedAssets.contains(item) {
+                    if self.selectedItems.contains(item) {
                         let indexPath = IndexPath(item: index, section: 0)
                         self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
                     }
@@ -375,8 +381,8 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     // Update selection delegate methods to update the bottom bar.
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         if let item = itemAtIndexPath(indexPath) {
-            if !selectedAssets.contains(item) {
-                selectedAssets.append(item)
+            if !selectedItems.contains(item) {
+                selectedItems.append(item)
             }
             updateBottomBar()
         }
@@ -384,8 +390,8 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
         if let item = itemAtIndexPath(indexPath) {
-            if let index = selectedAssets.firstIndex(of: item) {
-                selectedAssets.remove(at: index)
+            if let index = selectedItems.firstIndex(of: item) {
+                selectedItems.remove(at: index)
             }
             updateBottomBar()
         }
@@ -395,7 +401,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         if let item = itemAtIndexPath(indexPath) {
             switch item {
             case .asset, .image, .video:
-                return selectedAssets.count < options.selectionLimit
+                return selectedItems.count < options.selectionLimit
             case .camera:
                 let cameraVC = PKCameraViewController(
                     options: PKCameraOptions(
@@ -411,17 +417,24 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     }
     
     func cameraViewController(_ controller: PKCameraViewController, didFinishWith photo: UIImage) {
-        self.selectedAssets.append(.image(photo))
-        deliverSelectedItems()
+        if controller.options.singleShot {
+            self.navigationController?.popToViewController(self, animated: true)
+        }
+        self.selectedItems.append(.image(photo))
+        updateBottomBar()
     }
     
     func cameraViewController(_ controller: PKCameraViewController, didFinishWith videoURL: URL) {
-        
+        if controller.options.singleShot {
+            self.navigationController?.popToViewController(self, animated: true)
+        }
+        self.selectedItems.append(.video(videoURL))
+        updateBottomBar()
     }
     
     func updateBottomBar() {
-        bottomBar.update(with: selectedAssets)
-        bottomBar.isHidden = selectedAssets.isEmpty
+        bottomBar.update(with: selectedItems)
+        bottomBar.isHidden = selectedItems.isEmpty
         let bottomInset = bottomBar.isHidden ? 0 : (bottomBar.bounds.height - view.safeAreaInsets.bottom)
         collectionView.contentInset.bottom = max(bottomInset, 0)
     }

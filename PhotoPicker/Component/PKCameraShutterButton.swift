@@ -12,6 +12,7 @@ class PKCameraShutterButton: UIControl {
     var rigidHaptics: UIImpactFeedbackGenerator?
     let innerCircle = UIView()
     var onTap: (() -> Void)?
+    private var activityIndicator: UIActivityIndicatorView?
 
     init(mode: PKCameraOptions.PKCameraMode) {
         super.init(frame: .zero)
@@ -80,6 +81,37 @@ class PKCameraShutterButton: UIControl {
             self.innerCircle.transform = .identity
         }
         onTap?()
+    }
+    
+    func setLoading(_ loading: Bool) {
+        if loading {
+            innerCircle.isHidden = true
+            if activityIndicator == nil {
+                let indicator = UIActivityIndicatorView(style: .large)
+                indicator.overrideUserInterfaceStyle = .dark
+                indicator.translatesAutoresizingMaskIntoConstraints = false
+                indicator.startAnimating()
+                addSubview(indicator)
+                NSLayoutConstraint.activate([
+                    indicator.centerXAnchor.constraint(equalTo: innerCircle.centerXAnchor),
+                    indicator.centerYAnchor.constraint(equalTo: innerCircle.centerYAnchor)
+                ])
+                activityIndicator = indicator
+            }
+        } else {
+            innerCircle.isHidden = false
+            activityIndicator?.removeFromSuperview()
+            activityIndicator = nil
+        }
+    }
+    
+    func setRecording(_ recording: Bool) {
+        let cornerRadius: CGFloat = recording ? 8 : 28
+        let scale: CGFloat = recording ? 0.6 : 1.0
+        UIView.animate(withDuration: 0.2, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: [.curveEaseInOut], animations: {
+            self.innerCircle.layer.cornerRadius = cornerRadius
+            self.innerCircle.transform = CGAffineTransform(scaleX: scale, y: scale)
+        }, completion: nil)
     }
     
     override var intrinsicContentSize: CGSize {

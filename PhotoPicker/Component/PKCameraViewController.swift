@@ -15,6 +15,13 @@ struct PKCameraOptions {
     }
     let mode: PKCameraMode
     let position: AVCaptureDevice.Position
+    let singleShot: Bool
+    
+    init(mode: PKCameraMode, position: AVCaptureDevice.Position = .back, singleShot: Bool = true) {
+        self.mode = mode
+        self.position = position
+        self.singleShot = singleShot
+    }
 }
 
 protocol PKCameraViewControllerDelegate: AnyObject {
@@ -23,11 +30,14 @@ protocol PKCameraViewControllerDelegate: AnyObject {
 }
 
 class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
-    private let options: PKCameraOptions
+    let options: PKCameraOptions
     private let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
     private let movieOutput = AVCaptureMovieFileOutput()
     private let preview = PKCameraPreview()
+    private var shutterButton: PKCameraShutterButton?
+    private var recordingTimeLabel: UILabel?
+    private var recordingTimer: Timer?
     weak var delegate: PKCameraViewControllerDelegate?
     
     var isRecording = false
@@ -77,7 +87,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     
     func setupViews() {
         let bottomBar = UIView()
-        bottomBar.backgroundColor = UIColor.systemGray5.withAlphaComponent(0.7)
+        bottomBar.backgroundColor = UIColor.systemGray.withAlphaComponent(0.7)
         bottomBar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(bottomBar)
         NSLayoutConstraint.activate([
@@ -90,7 +100,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         preview.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(preview, at: 0)
         NSLayoutConstraint.activate([
-            preview.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            preview.topAnchor.constraint(equalTo: options.mode == .photo ? view.safeAreaLayoutGuide.topAnchor : view.topAnchor),
             preview.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
             preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
@@ -108,14 +118,20 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
 
         let shutterButton = PKCameraShutterButton(mode: options.mode)
         shutterButton.translatesAutoresizingMaskIntoConstraints = false
+        shutterButton.innerCircle.backgroundColor = options.mode == .photo ? .white : .systemRed
         shutterButton.onTap = {
-            self.capturePhoto()
+            if self.options.mode == .photo {
+                self.capturePhoto()
+            } else {
+                self.toggleRecording()
+            }
         }
         buttonContainer.addSubview(shutterButton)
         NSLayoutConstraint.activate([
             shutterButton.centerXAnchor.constraint(equalTo: buttonContainer.centerXAnchor),
             shutterButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor)
         ])
+        self.shutterButton = shutterButton
 
         let flipButton = UIButton(type: .system)
         flipButton.translatesAutoresizingMaskIntoConstraints = false
@@ -127,6 +143,24 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             flipButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor),
             flipButton.trailingAnchor.constraint(equalTo: buttonContainer.trailingAnchor, constant: -20)
         ])
+
+        let timeLabel = UILabel()
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.textColor = .white
+        timeLabel.backgroundColor = .systemRed
+        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 15, weight: .medium)
+        timeLabel.textAlignment = .center
+        timeLabel.layer.cornerRadius = 4
+        timeLabel.layer.masksToBounds = true
+        timeLabel.isHidden = true
+        view.addSubview(timeLabel)
+        NSLayoutConstraint.activate([
+            timeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            timeLabel.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -12),
+            timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 60),
+            timeLabel.heightAnchor.constraint(equalToConstant: 28)
+        ])
+        recordingTimeLabel = timeLabel
     }
 
     @objc private func switchCameraTapped() {
@@ -210,9 +244,35 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     func capturePhoto() {
+        shutterButton?.setLoading(true)
         preview.flashShutterEffect()
+        
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+    
+    func toggleRecording() {
+        if isRecording {
+            shutterButton?.setLoading(true)
+            recordingTimer?.invalidate()
+            recordingTimeLabel?.isHidden = true
+            movieOutput.stopRecording()
+            isRecording = false
+        } else {
+            let outputURL = PKPhotoPicker.tempFileURL(UUID().uuidString, withExtension: "mp4")
+            movieOutput.startRecording(to: outputURL, recordingDelegate: self)
+            recordingTimeLabel?.text = "00:00:00"
+            recordingTimeLabel?.isHidden = false
+            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                let totalSeconds = Int(self.movieOutput.recordedDuration.seconds)
+                let hours = totalSeconds / 3600
+                let minutes = (totalSeconds % 3600) / 60
+                let seconds = totalSeconds % 60
+                self.recordingTimeLabel?.text = String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+            }
+            isRecording = true
+        }
+        shutterButton?.setRecording(isRecording)
     }
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
@@ -220,6 +280,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             guard let cgImage = photo.cgImageRepresentation() else { return }
             let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
             DispatchQueue.main.async {
+                self.shutterButton?.setLoading(false)
                 self.delegate?.cameraViewController(self, didFinishWith: image)
             }
         }
@@ -234,6 +295,9 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        //UISaveVideoAtPathToSavedPhotosAlbum(outputFileURL.path, nil, nil, nil)
+        recordingTimer?.invalidate()
+        guard error == nil else { return }
+        shutterButton?.setLoading(false)
+        delegate?.cameraViewController(self, didFinishWith: outputFileURL)
     }
 }
