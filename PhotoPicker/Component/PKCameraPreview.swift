@@ -73,7 +73,9 @@ class PKCameraPreview: UIView {
         do {
             try device.lockForConfiguration()
             var zoomFactor = device.videoZoomFactor * gesture.scale
-            zoomFactor = max(1.0, min(zoomFactor, device.activeFormat.videoMaxZoomFactor))
+            let minZoom = device.minAvailableVideoZoomFactor
+            let maxZoom = device.maxAvailableVideoZoomFactor
+            zoomFactor = min(max(zoomFactor, minZoom), maxZoom)
             device.videoZoomFactor = zoomFactor
             device.unlockForConfiguration()
         } catch {

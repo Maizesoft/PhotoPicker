@@ -135,8 +135,22 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         }
     }
 
+    private func findBestCameraDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualCamera,
+            .builtInWideAngleCamera
+        ]
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .video,
+            position: position
+        )
+        return discoverySession.devices.first
+    }
+
     func setupCamera() {
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: options.position),
+        guard let device = findBestCameraDevice(for: options.position),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input),
               session.canAddOutput(photoOutput),
@@ -150,6 +164,8 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         session.commitConfiguration()
         preview.setSession(session)
         
+        setInitialZoom(for: device)
+        
         DispatchQueue.global().async {
             self.session.startRunning()
         }
@@ -159,15 +175,38 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         guard let currentInput = session.inputs.first as? AVCaptureDeviceInput else { return }
 
         let newPosition: AVCaptureDevice.Position = (currentInput.device.position == .back) ? .front : .back
-        guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition),
+        guard let newDevice = findBestCameraDevice(for: newPosition),
               let newInput = try? AVCaptureDeviceInput(device: newDevice) else { return }
 
         session.beginConfiguration()
         session.removeInput(currentInput)
         if session.canAddInput(newInput) {
             session.addInput(newInput)
+            setInitialZoom(for: newDevice)
         }
         session.commitConfiguration()
+    }
+
+    private func setInitialZoom(for device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors
+            let minZoom = device.minAvailableVideoZoomFactor
+            let maxZoom = device.maxAvailableVideoZoomFactor
+            let zoomForWideLens: CGFloat
+            
+            if let first = switchOvers.first {
+                zoomForWideLens = CGFloat(truncating: first)
+            } else {
+                zoomForWideLens = 1.0
+            }
+
+            let clamped = min(max(zoomForWideLens, minZoom), maxZoom)
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+        } catch {
+            print("Error setting initial zoom: \(error)")
+        }
     }
 
     func capturePhoto() {
