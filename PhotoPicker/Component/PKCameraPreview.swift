@@ -18,6 +18,7 @@ class PKCameraPreview: UIView {
         }
         let newLayer = AVCaptureVideoPreviewLayer(session: session)
         newLayer.videoGravity = .resizeAspect
+        newLayer.connection?.automaticallyAdjustsVideoMirroring = false // do not flip selfie preview
         layer.addSublayer(newLayer)
         previewLayer = newLayer
         self.session = session
