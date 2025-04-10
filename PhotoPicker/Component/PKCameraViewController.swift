@@ -85,9 +85,16 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         }
     }
     
+    var isVideoMode: Bool {
+        return options.mode == .video
+    }
+    var isPhotoMode: Bool {
+        return options.mode == .photo
+    }
+    
     func setupViews() {
         let bottomBar = UIView()
-        bottomBar.backgroundColor = UIColor.systemGray.withAlphaComponent(0.7)
+        bottomBar.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         bottomBar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(bottomBar)
         NSLayoutConstraint.activate([
@@ -100,11 +107,20 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         preview.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(preview, at: 0)
         NSLayoutConstraint.activate([
-            preview.topAnchor.constraint(equalTo: options.mode == .photo ? view.safeAreaLayoutGuide.topAnchor : view.topAnchor),
-            preview.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
             preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
+        if isVideoMode {
+            NSLayoutConstraint.activate([
+                preview.topAnchor.constraint(equalTo: view.topAnchor),
+                preview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                preview.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+                preview.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
+            ])
+        }
         
         let buttonContainer = UIView()
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -118,9 +134,9 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
 
         let shutterButton = PKCameraShutterButton(mode: options.mode)
         shutterButton.translatesAutoresizingMaskIntoConstraints = false
-        shutterButton.innerCircle.backgroundColor = options.mode == .photo ? .white : .systemRed
+        shutterButton.innerCircle.backgroundColor = isVideoMode ? .systemRed : .white
         shutterButton.onTap = {
-            if self.options.mode == .photo {
+            if self.isPhotoMode {
                 self.capturePhoto()
             } else {
                 self.toggleRecording()
@@ -148,7 +164,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
         timeLabel.textColor = .white
         timeLabel.backgroundColor = .systemRed
-        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 15, weight: .medium)
+        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
         timeLabel.textAlignment = .center
         timeLabel.layer.cornerRadius = 4
         timeLabel.layer.masksToBounds = true
@@ -157,8 +173,8 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         NSLayoutConstraint.activate([
             timeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             timeLabel.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -12),
-            timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 60),
-            timeLabel.heightAnchor.constraint(equalToConstant: 28)
+            timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
+            timeLabel.heightAnchor.constraint(equalToConstant: 30)
         ])
         recordingTimeLabel = timeLabel
     }
@@ -191,7 +207,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
               session.canAddOutput(movieOutput) else { return }
 
         session.beginConfiguration()
-        session.sessionPreset = options.mode == .photo ? .photo : .high
+        session.sessionPreset = isPhotoMode ? .photo : .high
         session.addInput(input)
         session.addOutput(photoOutput)
         session.addOutput(movieOutput)
@@ -263,7 +279,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             movieOutput.startRecording(to: outputURL, recordingDelegate: self)
             recordingTimeLabel?.text = "00:00:00"
             recordingTimeLabel?.isHidden = false
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
                 let totalSeconds = Int(self.movieOutput.recordedDuration.seconds)
                 let hours = totalSeconds / 3600
                 let minutes = (totalSeconds % 3600) / 60
@@ -285,6 +301,13 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             }
         }
     }
+    
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        recordingTimer?.invalidate()
+        shutterButton?.setLoading(false)
+        guard error == nil else { return }
+        delegate?.cameraViewController(self, didFinishWith: outputFileURL)
+    }
 
     @objc func closeTapped() {
         if let nav = self.navigationController {
@@ -292,12 +315,5 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         } else {
             self.dismiss(animated: true, completion: nil)
         }
-    }
-
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        recordingTimer?.invalidate()
-        guard error == nil else { return }
-        shutterButton?.setLoading(false)
-        delegate?.cameraViewController(self, didFinishWith: outputFileURL)
     }
 }

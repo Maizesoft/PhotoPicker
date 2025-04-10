@@ -1,25 +1,27 @@
 import UIKit
 import Photos
 
-class PKPhotoPickerBottomBar: UIView {
+class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
     var onConfirm: (() -> Void)?
-    let scrollView = UIScrollView()
-    let stackView = UIStackView()
+    var onTapItem: ((PKPhotoPickerItem) -> Void)?
+    var collectionView: UICollectionView!
     var imageCache: PHCachingImageManager?
-    let cellSize = CGSizeMake(50, 50)
+    let cellSize = CGSize(width: 50, height: 50)
     let confirmButton = UIButton(type: .system)
     let contentContainer = UIView()
-    
+    private var items: [PKPhotoPickerItem] = []
+    private var selectedIndex: Int?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupView()
     }
-    
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupView()
     }
-    
+
     private func setupView() {
         let blurEffect = UIBlurEffect(style: .systemMaterial)
         let blurView = UIVisualEffectView(effect: blurEffect)
@@ -40,9 +42,7 @@ class PKPhotoPickerBottomBar: UIView {
             contentContainer.topAnchor.constraint(equalTo: topAnchor),
             contentContainer.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
         ])
-        
-        contentContainer.addSubview(scrollView)
-        
+
         contentContainer.addSubview(confirmButton)
         confirmButton.translatesAutoresizingMaskIntoConstraints = false
         var config = UIButton.Configuration.filled()
@@ -51,38 +51,36 @@ class PKPhotoPickerBottomBar: UIView {
         config.baseForegroundColor = .white
         config.cornerStyle = .medium
         confirmButton.configuration = config
-        
+
         confirmButton.addTarget(self, action: #selector(confirmButtonTapped), for: .touchUpInside)
 
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: confirmButton.leadingAnchor, constant: -8),
-            scrollView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
-        ])
-        
-        scrollView.addSubview(stackView)
-        stackView.axis = .horizontal
-        stackView.alignment = .center
-        stackView.spacing = 5
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 8),
-            stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -8),
-            stackView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            stackView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            stackView.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
-        ])
-        
         NSLayoutConstraint.activate([
             confirmButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -12),
             confirmButton.centerYAnchor.constraint(equalTo: contentContainer.centerYAnchor),
             confirmButton.heightAnchor.constraint(equalToConstant: 36),
         ])
+
+        let layout = UICollectionViewFlowLayout()
+        layout.scrollDirection = .horizontal
+        layout.minimumInteritemSpacing = 5
+        layout.itemSize = cellSize
+        collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        collectionView.showsHorizontalScrollIndicator = false
+        collectionView.backgroundColor = .clear
+        collectionView.dataSource = self
+        collectionView.delegate = self
+        collectionView.register(PKPhotoThumbnailCell.self, forCellWithReuseIdentifier: "PKPhotoThumbnailCell")
+        contentContainer.addSubview(collectionView)
+
+        NSLayoutConstraint.activate([
+            collectionView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor, constant: 8),
+            collectionView.trailingAnchor.constraint(equalTo: confirmButton.leadingAnchor, constant: -8),
+            collectionView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
+        ])
     }
-    
+
     @objc private func confirmButtonTapped() {
         if var config = confirmButton.configuration {
             config.showsActivityIndicator = true
@@ -92,39 +90,62 @@ class PKPhotoPickerBottomBar: UIView {
         confirmButton.isEnabled = false
         onConfirm?()
     }
-    
-    func update(with items: [PKPhotoPickerItem]) {
-        // Remove all existing thumbnails
-        for view in stackView.arrangedSubviews {
-            stackView.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
-        
-        guard let imageManager = imageCache else { return }
-        
-        for item in items {
-            let thumbImageView = UIImageView()
-            thumbImageView.layer.borderColor = UIColor.systemFill.cgColor
-            thumbImageView.layer.borderWidth = 1
-            thumbImageView.contentMode = .scaleAspectFill
-            thumbImageView.clipsToBounds = true
-            thumbImageView.translatesAutoresizingMaskIntoConstraints = false
-            thumbImageView.widthAnchor.constraint(equalToConstant: cellSize.width).isActive = true
-            thumbImageView.heightAnchor.constraint(equalToConstant: cellSize.height).isActive = true
-            stackView.addArrangedSubview(thumbImageView)
-            switch item {
-            case let .asset(asset):
-                imageManager.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
-                    thumbImageView.image = image
-                }
-            case let .image(image):
-                thumbImageView.image = image
-            case let .video(url):
-                thumbImageView.contentMode = .scaleAspectFit
-                thumbImageView.image = UIImage(systemName: "video")
-            default:
-                break
+
+    func update(with newItems: [PKPhotoPickerItem]) {
+        self.items = newItems
+        collectionView.reloadData()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return items.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "PKPhotoThumbnailCell", for: indexPath) as! PKPhotoThumbnailCell
+        let item = items[indexPath.item]
+
+        switch item {
+        case let .asset(asset):
+            imageCache?.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
+                cell.imageView.image = image
             }
+        case let .image(image):
+            cell.imageView.image = image
+        case let .video(_, thumbnail):
+            cell.imageView.contentMode = .scaleAspectFit
+            cell.imageView.image = thumbnail ?? UIImage(systemName: "video")
+        default:
+            break
         }
+
+        cell.layer.borderWidth = 1
+        cell.layer.borderColor = UIColor.systemFill.cgColor
+        return cell
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        onTapItem?(items[indexPath.item])
+    }
+}
+
+class PKPhotoThumbnailCell: UICollectionViewCell {
+    let imageView = UIImageView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        contentView.addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }

@@ -28,7 +28,7 @@ struct PKPhotoPickerOptions {
 enum PKPhotoPickerItem: Equatable {
     case asset(PHAsset)
     case image(UIImage)
-    case video(URL)
+    case video(URL, UIImage?)
     case camera
     static func == (lhs: PKPhotoPickerItem, rhs: PKPhotoPickerItem) -> Bool {
         switch (lhs, rhs) {
@@ -36,7 +36,7 @@ enum PKPhotoPickerItem: Equatable {
             return a1.localIdentifier == a2.localIdentifier
         case let (.image(i1), .image(i2)):
             return i1 === i2
-        case let (.video(u1), .video(u2)):
+        case let (.video(u1, _), .video(u2, _)):
             return u1 == u2
         case (.camera, .camera):
             return true
@@ -63,7 +63,7 @@ enum PKPhotoPickerItem: Equatable {
                             session.exportAsynchronously {
                                 if session.status == .completed {
                                     print(outputURL)
-                                    continuation.resume(returning: .video(outputURL))
+                                    continuation.resume(returning: .video(outputURL, nil))
                                 } else {
                                     continuation.resume(returning: nil)
                                 }
@@ -176,6 +176,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         bottomBar.onConfirm = { [weak self] in
             guard let self = self else { return }
             self.deliverSelectedItems()
+        }
+        bottomBar.onTapItem = { [weak self] item in
+            let previewVC = PKPhotoPreviewViewController()
+            previewVC.item = item
+            self?.navigationController?.pushViewController(previewVC, animated: true)
         }
 
         PHPhotoLibrary.requestAuthorization { status in
@@ -428,7 +433,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         if controller.options.singleShot {
             self.navigationController?.popToViewController(self, animated: true)
         }
-        self.selectedItems.append(.video(videoURL))
+        self.selectedItems.append(.video(videoURL, nil))
         updateBottomBar()
     }
     
