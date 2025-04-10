@@ -178,9 +178,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             self.deliverSelectedItems()
         }
         bottomBar.onTapItem = { [weak self] item in
-            let previewVC = PKPhotoPreviewViewController()
-            previewVC.item = item
-            self?.navigationController?.pushViewController(previewVC, animated: true)
+            guard let self = self else { return }
+            let previewVC = PKPhotoPreviewViewController(items: self.selectedItems, currentIndex: self.selectedItems.firstIndex(of: item) ?? 0)
+            previewVC.modalPresentationStyle = .fullScreen
+            present(previewVC, animated: true)
+            //self.navigationController?.pushViewController(previewVC, animated: true)
         }
 
         PHPhotoLibrary.requestAuthorization { status in
