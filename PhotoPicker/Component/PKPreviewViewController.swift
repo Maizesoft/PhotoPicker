@@ -7,8 +7,9 @@
 
 import UIKit
 import Photos
+import AVFoundation
 
-class PKPhotoPreviewViewController: UIViewController, UIScrollViewDelegate {
+class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
     var currentIndex: Int = 0
     var items = [PKPhotoPickerItem]()
     let pagingScrollView = UIScrollView()
@@ -65,9 +66,10 @@ class PKPhotoPreviewViewController: UIViewController, UIScrollViewDelegate {
         // Configure and add pageControl
         pageControl.numberOfPages = items.count
         pageControl.currentPage = currentIndex
-        pageControl.currentPageIndicatorTintColor = .white
-        pageControl.pageIndicatorTintColor = .gray
+        //pageControl.currentPageIndicatorTintColor = .white
+        //pageControl.pageIndicatorTintColor = .gray
         pageControl.isUserInteractionEnabled = false
+        pageControl.isHidden = items.count <= 1
         view.addSubview(pageControl)
 
         pageControl.translatesAutoresizingMaskIntoConstraints = false
@@ -93,13 +95,21 @@ class PKPhotoPreviewViewController: UIViewController, UIScrollViewDelegate {
         pagingScrollView.isHidden = true
         for (index, item) in items.enumerated() {
             let resolved = await item.exportAsset(manager: PHCachingImageManager())
-            guard case let .image(image) = resolved else { continue }
-            let frame = CGRect(x: CGFloat(index) * view.bounds.width, y: 0,
-                               width: view.bounds.width, height: view.bounds.height)
-            let zoomScrollView = PKPhotoPreviewCell(frame: frame, image: image)
-            pagingScrollView.addSubview(zoomScrollView)
+            let frame = CGRect(x: CGFloat(index) * view.bounds.width,
+                               y: 0,
+                               width: view.bounds.width,
+                               height: view.bounds.height)
+            switch resolved {
+            case let .image(image):
+                let preview = PKPhotoPreviewCell(frame: frame, image: image)
+                pagingScrollView.addSubview(preview)
+            case let .video(url, _):
+                let preview = PKVideoPreviewCell(frame: frame, videoURL: url)
+                pagingScrollView.addSubview(preview)
+            default:
+                continue
+            }
         }
-        
         pagingScrollView.contentSize = CGSize(width: view.bounds.width * CGFloat(items.count),
                                               height: view.bounds.height)
         let offsetX = CGFloat(currentIndex) * view.bounds.width
@@ -198,5 +208,73 @@ class PKPhotoPreviewCell: UIScrollView, UIScrollViewDelegate {
             let zoomRect = CGRect(x: originX, y: originY, width: width, height: height)
             zoom(to: zoomRect, animated: true)
         }
+    }
+}
+
+class PKVideoPreviewCell: UIView {
+    private var videoURL: URL
+    private var player: AVPlayer
+    private var playerLayer: AVPlayerLayer
+    private var playIcon: UIImageView
+    private var playerRateObserver: NSKeyValueObservation?
+
+    init(frame: CGRect, videoURL: URL) {
+        self.videoURL = videoURL
+        self.player = AVPlayer(url: videoURL)
+        self.playerLayer = AVPlayerLayer(player: player)
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 50, weight: .regular)
+        let playImage = UIImage(systemName: "play.fill", withConfiguration: symbolConfig)
+        self.playIcon = UIImageView(image: playImage)
+
+        super.init(frame: frame)
+        backgroundColor = .black
+
+        playerLayer.videoGravity = .resizeAspect
+        layer.addSublayer(playerLayer)
+
+        playIcon.tintColor = .white
+        playIcon.contentMode = .center
+        playIcon.backgroundColor = .black.withAlphaComponent(0.3)
+        addSubview(playIcon)
+
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(togglePlayback))
+        addGestureRecognizer(tapGesture)
+        
+        let doubleTapGesture = UITapGestureRecognizer(target: self, action: #selector(toggleVideoGravity))
+        doubleTapGesture.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTapGesture)
+        tapGesture.require(toFail: doubleTapGesture)
+
+        playerRateObserver = player.observe(\.rate, options: [.initial, .new]) { [weak self] player, _ in
+            DispatchQueue.main.async {
+                self?.playIcon.isHidden = player.rate != 0
+            }
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer.frame = bounds
+        playIcon.frame = bounds
+    }
+
+    @objc private func togglePlayback() {
+        if player.timeControlStatus == .playing {
+            player.pause()
+        } else {
+            if let currentItem = player.currentItem,
+               currentItem.currentTime() >= currentItem.duration {
+                player.seek(to: .zero)
+            }
+            player.play()
+        }
+    }
+
+    @objc private func toggleVideoGravity() {
+        playerLayer.videoGravity = (playerLayer.videoGravity == .resizeAspect) ? .resizeAspectFill : .resizeAspect
     }
 }

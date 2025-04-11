@@ -179,7 +179,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         }
         bottomBar.onTapItem = { [weak self] item in
             guard let self = self else { return }
-            let previewVC = PKPhotoPreviewViewController(items: self.selectedItems, currentIndex: self.selectedItems.firstIndex(of: item) ?? 0)
+            let previewVC = PKPreviewViewController(items: self.selectedItems, currentIndex: self.selectedItems.firstIndex(of: item) ?? 0)
             previewVC.modalPresentationStyle = .fullScreen
             present(previewVC, animated: true)
             //self.navigationController?.pushViewController(previewVC, animated: true)
