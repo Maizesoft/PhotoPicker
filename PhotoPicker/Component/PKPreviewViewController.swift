@@ -10,10 +10,11 @@ import Photos
 import AVFoundation
 
 class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
+    var showsRetakeConfirmButton = false
     var currentIndex: Int = 0
     var items = [PKPhotoPickerItem]()
     let pagingScrollView = UIScrollView()
-    let pageControl = UIPageControl() // Added UIPageControl property
+    let pageControl = UIPageControl()
 
     init(items: [PKPhotoPickerItem], currentIndex: Int) {
         self.items = items
@@ -217,6 +218,8 @@ class PKVideoPreviewCell: UIView {
     private var playerLayer: AVPlayerLayer
     private var playIcon: UIImageView
     private var playerRateObserver: NSKeyValueObservation?
+    private let timeLabel = UILabel()
+    private var timeObserverToken: Any?
 
     init(frame: CGRect, videoURL: URL) {
         self.videoURL = videoURL
@@ -237,6 +240,14 @@ class PKVideoPreviewCell: UIView {
         playIcon.backgroundColor = .black.withAlphaComponent(0.3)
         addSubview(playIcon)
 
+        timeLabel.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        timeLabel.textColor = .white
+        timeLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular)
+        timeLabel.textAlignment = .center
+        timeLabel.layer.cornerRadius = 4
+        timeLabel.clipsToBounds = true
+        addSubview(timeLabel)
+
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(togglePlayback))
         addGestureRecognizer(tapGesture)
         
@@ -250,16 +261,36 @@ class PKVideoPreviewCell: UIView {
                 self?.playIcon.isHidden = player.rate != 0
             }
         }
+
+        timeObserverToken = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] time in
+            guard let self = self,
+                  let duration = self.player.currentItem?.duration.seconds,
+                  duration.isFinite else { return }
+            let current = Int(time.seconds)
+            let total = Int(duration)
+            let format: (Int) -> String = { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
+            self.timeLabel.text = "\(format(current)) / \(format(total))"
+        }
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        if let token = timeObserverToken {
+            player.removeTimeObserver(token)
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         playerLayer.frame = bounds
         playIcon.frame = bounds
+        
+        let labelWidth: CGFloat = 100
+        let labelHeight: CGFloat = 20
+        timeLabel.frame = CGRect(x: (bounds.width - labelWidth) / 2, y: bounds.height - labelHeight - 100, width: labelWidth, height: labelHeight)
     }
 
     @objc private func togglePlayback() {
