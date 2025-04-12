@@ -38,6 +38,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     private var shutterButton: PKCameraShutterButton?
     private var recordingTimeLabel: UILabel?
     private var recordingTimer: Timer?
+    private var permissionLabel: UILabel?
     weak var delegate: PKCameraViewControllerDelegate?
     
     var isRecording = false
@@ -81,6 +82,9 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
                 if granted { DispatchQueue.main.async { self.setupCamera() } }
             }
         default:
+            DispatchQueue.main.async {
+                self.permissionLabel?.isHidden = false
+            }
             break
         }
     }
@@ -177,6 +181,22 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             timeLabel.heightAnchor.constraint(equalToConstant: 30)
         ])
         recordingTimeLabel = timeLabel
+        
+        let label = UILabel()
+        label.text = "No permission to camera"
+        label.textColor = .white
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.isHidden = true
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
+        ])
+        permissionLabel = label
     }
 
     @objc private func switchCameraTapped() {
