@@ -166,6 +166,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         flipButton.translatesAutoresizingMaskIntoConstraints = false
         let flipImage = UIImage(systemName: "arrow.trianglehead.2.clockwise.rotate.90.camera.fill")
         flipButton.setImage(flipImage, for: .normal)
+        flipButton.tintColor = .white
         flipButton.addTarget(self, action: #selector(switchCameraTapped), for: .touchUpInside)
         buttonContainer.addSubview(flipButton)
         NSLayoutConstraint.activate([
@@ -311,9 +312,10 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             movieOutput.stopRecording()
             isRecording = false
         } else {
-            if let movieConnection = movieOutput.connection(with: .video),
-               movieConnection.isVideoMirroringSupported {
-                movieConnection.isVideoMirrored = previewIsMirrored
+            if let movieConnection = movieOutput.connection(with: .video) {
+                if movieConnection.isVideoMirroringSupported {
+                    movieConnection.isVideoMirrored = previewIsMirrored
+                }
             }
             let outputURL = PKPhotoPicker.tempFileURL(UUID().uuidString, withExtension: "mp4")
             movieOutput.startRecording(to: outputURL, recordingDelegate: self)
