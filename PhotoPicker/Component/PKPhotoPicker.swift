@@ -17,11 +17,13 @@ struct PKPhotoPickerOptions {
     let selectionLimit: Int
     let mode: PKPhotoPickerMode
     let cameraEntry: Bool
+    let cameraSingleShot: Bool
     
-    init(selectionLimit: Int = 5, mode: PKPhotoPickerMode, cameraEntry: Bool = true) {
+    init(selectionLimit: Int = 5, mode: PKPhotoPickerMode, cameraEntry: Bool = true, cameraSingleShot: Bool = true) {
         self.selectionLimit = selectionLimit
         self.mode = mode
         self.cameraEntry = cameraEntry
+        self.cameraSingleShot = cameraSingleShot
     }
 }
 
@@ -86,10 +88,8 @@ enum PKPhotoPickerItem: Equatable {
                 } else {
                     continuation.resume(returning: nil)
                 }
-            } else if case .image(let image) = self {
-                continuation.resume(returning: .image(image))
             } else {
-                continuation.resume(returning: nil)
+                continuation.resume(returning: self)
             }
         }
     }
@@ -423,19 +423,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         return false
     }
     
-    func cameraViewController(_ controller: PKCameraViewController, didFinishWith photo: UIImage) {
-        if controller.options.singleShot {
+    func cameraViewController(_ controller: PKCameraViewController, didFinishWith items: [PKPhotoPickerItem]) {
+        if options.cameraSingleShot {
             self.navigationController?.popToViewController(self, animated: true)
         }
-        self.selectedItems.append(.image(photo))
-        updateBottomBar()
-    }
-    
-    func cameraViewController(_ controller: PKCameraViewController, didFinishWith videoURL: URL) {
-        if controller.options.singleShot {
-            self.navigationController?.popToViewController(self, animated: true)
-        }
-        self.selectedItems.append(.video(videoURL, nil))
+        self.selectedItems.append(contentsOf: items)
         updateBottomBar()
     }
     

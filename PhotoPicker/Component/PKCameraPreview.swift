@@ -9,7 +9,7 @@ import UIKit
 import AVFoundation
 
 class PKCameraPreview: UIView {
-    private var previewLayer: AVCaptureVideoPreviewLayer?
+    var previewLayer: AVCaptureVideoPreviewLayer?
     private weak var session: AVCaptureSession?
     
     func setSession(_ session: AVCaptureSession) {
@@ -18,7 +18,7 @@ class PKCameraPreview: UIView {
         }
         let newLayer = AVCaptureVideoPreviewLayer(session: session)
         newLayer.videoGravity = .resizeAspect
-        newLayer.connection?.automaticallyAdjustsVideoMirroring = false // do not flip selfie preview
+        //newLayer.connection?.automaticallyAdjustsVideoMirroring = false // do not flip selfie preview
         layer.addSublayer(newLayer)
         previewLayer = newLayer
         self.session = session

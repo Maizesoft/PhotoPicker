@@ -9,17 +9,24 @@ import UIKit
 import Photos
 import AVFoundation
 
+protocol PKPreviewDelegate: AnyObject {
+    func previewDidConfirm(_ preview: PKPreviewViewController)
+    func previewDidRetake(_ preview: PKPreviewViewController)
+}
+
 class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
-    var showsRetakeConfirmButton = false
+    var showRetakeConfirmButton = false
     var currentIndex: Int = 0
     var items = [PKPhotoPickerItem]()
+    weak var delegate: PKPreviewDelegate?
     let pagingScrollView = UIScrollView()
     let pageControl = UIPageControl()
 
-    init(items: [PKPhotoPickerItem], currentIndex: Int) {
+    init(items: [PKPhotoPickerItem], currentIndex: Int = 0) {
         self.items = items
         self.currentIndex = currentIndex
         super.init(nibName: nil, bundle: nil)
+        self.modalPresentationStyle = .fullScreen
     }
 
     required init?(coder: NSCoder) {
@@ -67,18 +74,59 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         // Configure and add pageControl
         pageControl.numberOfPages = items.count
         pageControl.currentPage = currentIndex
-        //pageControl.currentPageIndicatorTintColor = .white
-        //pageControl.pageIndicatorTintColor = .gray
         pageControl.isUserInteractionEnabled = false
         pageControl.isHidden = items.count <= 1
         view.addSubview(pageControl)
-
+        let bottomConstraint = pageControl.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+        bottomConstraint.priority = .defaultLow
         pageControl.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             pageControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            pageControl.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
+            bottomConstraint
         ])
 
+        if showRetakeConfirmButton {
+            let toolbar = UIView()
+            toolbar.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(toolbar)
+
+            let stackView = UIStackView()
+            stackView.axis = .horizontal
+            stackView.distribution = .fillEqually
+            stackView.spacing = 50
+            stackView.translatesAutoresizingMaskIntoConstraints = false
+            toolbar.addSubview(stackView)
+
+            let retakeButton = UIButton(type: .system)
+            retakeButton.setTitle("Retake", for: .normal)
+            retakeButton.setTitleColor(.white, for: .normal)
+            retakeButton.addTarget(self, action: #selector(retakeTapped), for: .touchUpInside)
+            //retakeButton.backgroundColor = UIColor.darkGray
+            stackView.addArrangedSubview(retakeButton)
+
+            let confirmButton = UIButton(type: .system)
+            confirmButton.setTitle("Confirm", for: .normal)
+            confirmButton.setTitleColor(.white, for: .normal)
+            confirmButton.addTarget(self, action: #selector(confirmTapped), for: .touchUpInside)
+            //confirmButton.backgroundColor = UIColor.systemBlue
+            stackView.addArrangedSubview(confirmButton)
+
+            closeButton.isHidden = true
+            
+            NSLayoutConstraint.activate([
+                toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                toolbar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                toolbar.heightAnchor.constraint(equalToConstant: 80),
+
+                stackView.leadingAnchor.constraint(equalTo: toolbar.safeAreaLayoutGuide.leadingAnchor),
+                stackView.trailingAnchor.constraint(equalTo: toolbar.safeAreaLayoutGuide.trailingAnchor),
+                stackView.topAnchor.constraint(equalTo: toolbar.topAnchor),
+                stackView.bottomAnchor.constraint(equalTo: toolbar.safeAreaLayoutGuide.bottomAnchor),
+                pageControl.bottomAnchor.constraint(equalTo: toolbar.topAnchor, constant: 0)
+            ])
+        }
+        
         Task {
             await loadPreview()
         }
@@ -90,6 +138,14 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         } else {
             dismiss(animated: true)
         }
+    }
+    
+    @objc private func retakeTapped() {
+        delegate?.previewDidRetake(self)
+    }
+    
+    @objc private func confirmTapped() {
+        delegate?.previewDidConfirm(self)
     }
 
     private func loadPreview() async {
@@ -271,6 +327,16 @@ class PKVideoPreviewCell: UIView {
             let format: (Int) -> String = { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
             self.timeLabel.text = "\(format(current)) / \(format(total))"
         }
+        
+        Task {
+            if let duration = try? await player.currentItem?.asset.load(.duration),
+               duration.isNumeric {
+                let total = Int(duration.seconds)
+                let format: (Int) -> String = { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
+                self.timeLabel.text = "00:00 / \(format(total))"
+            }
+        }
+        
     }
 
     required init?(coder: NSCoder) {

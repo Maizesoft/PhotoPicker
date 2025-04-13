@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import AVFAudio
 
 class PKCameraShutterButton: UIControl {
     var softHaptics: UIImpactFeedbackGenerator?
@@ -112,6 +113,7 @@ class PKCameraShutterButton: UIControl {
             self.innerCircle.layer.cornerRadius = cornerRadius
             self.innerCircle.transform = CGAffineTransform(scaleX: scale, y: scale)
         }, completion: nil)
+        try? AVAudioSession.sharedInstance().setAllowHapticsAndSystemSoundsDuringRecording(recording)
     }
     
     override var intrinsicContentSize: CGSize {
