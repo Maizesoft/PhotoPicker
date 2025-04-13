@@ -31,6 +31,7 @@ protocol PKCameraViewControllerDelegate: AnyObject {
 class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate, PKPreviewDelegate {
     let options: PKCameraOptions
     private let session = AVCaptureSession()
+    private let sessionQueue = DispatchQueue(label: "PKCameraViewController session queue")
     private let photoOutput = AVCapturePhotoOutput()
     private let movieOutput = AVCaptureMovieFileOutput()
     private let preview = PKCameraPreview()
@@ -65,14 +66,20 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if session.isRunning == false {
-            checkPermissionAndSetup()
+        sessionQueue.async {
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
         }
     }
     
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        session.stopRunning()
+        sessionQueue.async {
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+        }
     }
 
     func checkPermissionAndSetup() {
@@ -245,7 +252,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         
         setInitialZoom(for: device)
         
-        DispatchQueue.global().async {
+        sessionQueue.async {
             self.session.startRunning()
         }
     }
