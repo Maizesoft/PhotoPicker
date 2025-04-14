@@ -56,7 +56,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        let closeImage = UIImage(systemName: "xmark")?.withConfiguration(UIImage.SymbolConfiguration(pointSize: 17, weight: .regular))
+        let closeImage = UIImage(systemName: "xmark")?.withConfiguration(UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)).withTintColor(.white, renderingMode: .alwaysOriginal)
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(image: closeImage, style: .plain, target: self, action: #selector(closeTapped))
         self.navigationItem.hidesBackButton = true
         
@@ -230,31 +230,33 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     func setupCamera() {
-        guard let device = findBestCameraDevice(for: options.position),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input),
-              session.canAddOutput(photoOutput),
-              session.canAddOutput(movieOutput) else { return }
+        DispatchQueue.main.async {
+            guard let device = self.findBestCameraDevice(for: self.options.position),
+                  let input = try? AVCaptureDeviceInput(device: device),
+                  self.session.canAddInput(input),
+                  self.session.canAddOutput(self.photoOutput),
+                  self.session.canAddOutput(self.movieOutput) else { return }
 
-        session.beginConfiguration()
-        session.sessionPreset = isPhotoMode ? .photo : .high
-        session.addInput(input)
-        if isVideoMode {
-            if let audioDevice = AVCaptureDevice.default(for: .audio),
-               let micInput = try? AVCaptureDeviceInput(device: audioDevice),
-               session.canAddInput(micInput) {
-                session.addInput(micInput)
+            self.session.beginConfiguration()
+            self.session.sessionPreset = self.isPhotoMode ? .photo : .high
+            self.session.addInput(input)
+            if self.isVideoMode {
+                if let audioDevice = AVCaptureDevice.default(for: .audio),
+                   let micInput = try? AVCaptureDeviceInput(device: audioDevice),
+                   self.session.canAddInput(micInput) {
+                    self.session.addInput(micInput)
+                }
             }
-        }
-        session.addOutput(photoOutput)
-        session.addOutput(movieOutput)
-        session.commitConfiguration()
-        preview.setSession(session)
-        
-        setInitialZoom(for: device)
-        
-        sessionQueue.async {
-            self.session.startRunning()
+            self.session.addOutput(self.photoOutput)
+            self.session.addOutput(self.movieOutput)
+            self.session.commitConfiguration()
+            self.preview.setSession(self.session)
+            
+            self.setInitialZoom(for: device)
+            
+            self.sessionQueue.async {
+                self.session.startRunning()
+            }
         }
     }
     

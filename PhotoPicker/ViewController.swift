@@ -13,6 +13,7 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
     let stackView = UIStackView()
     let photoButton = UIButton(type: .system)
     let videoButton = UIButton(type: .system)
+    let allMediaButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -30,6 +31,12 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
         videoButton.addTarget(self, action: #selector(presentPhotoPicker(_:)), for: .touchUpInside)
         videoButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(videoButton)
+
+        allMediaButton.setTitle("Open All Picker", for: .normal)
+        allMediaButton.titleLabel?.font = .boldSystemFont(ofSize: 20)
+        allMediaButton.addTarget(self, action: #selector(presentPhotoPicker(_:)), for: .touchUpInside)
+        allMediaButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(allMediaButton)
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scrollView)
@@ -54,7 +61,10 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
         ])
 
         NSLayoutConstraint.activate([
-            videoButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            allMediaButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            allMediaButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            videoButton.bottomAnchor.constraint(equalTo: allMediaButton.topAnchor, constant: -12),
             videoButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
             photoButton.bottomAnchor.constraint(equalTo: videoButton.topAnchor, constant: -12),
@@ -63,10 +73,21 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
     }
 
     @objc func presentPhotoPicker(_ sender: UIButton) {
-        let isVideo = sender.title(for: .normal)?.contains("Video") == true
+        let title = sender.title(for: .normal)
+        let mode: PKPhotoPickerOptions.PKPhotoPickerMode
+        var showCamera = true
+        if title?.contains("Video") == true {
+            mode = .video
+        } else if title?.contains("All") == true {
+            mode = .all
+            showCamera = false
+        } else {
+            mode = .photo
+        }
         let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
-            mode: isVideo ? .video : .photo,
-            cameraEntry: true
+            selectionLimit: 1,
+            mode: mode,
+            cameraEntry: showCamera
         ))
         picker.delegate = self
         let navController = UINavigationController(rootViewController: picker)

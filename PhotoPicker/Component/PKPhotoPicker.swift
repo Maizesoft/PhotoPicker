@@ -183,8 +183,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             guard let self = self else { return }
             let previewVC = PKPreviewViewController(items: self.selectedItems, currentIndex: self.selectedItems.firstIndex(of: item) ?? 0)
             previewVC.modalPresentationStyle = .fullScreen
-            present(previewVC, animated: true)
-            //self.navigationController?.pushViewController(previewVC, animated: true)
+            if let nav = self.navigationController {
+                nav.pushViewController(previewVC, animated: true)
+            } else {
+                present(previewVC, animated: true)
+            }
         }
         bottomBar.onReordered = { [weak self] items in
             guard let self = self else { return }
@@ -205,6 +208,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     private func deliverSelectedItems() {
         Task {
+            setLoading(true)
             PKPhotoPicker.clearTempDirectory()
             var result = [PKPhotoPickerItem]()
             for asset in self.selectedItems {
@@ -289,9 +293,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             guard let self = self else { return }
             if loading {
                 self.activityIndicator.startAnimating()
-                self.collectionView.isHidden = true
+                collectionView.alpha = 0.5
+                collectionView.isUserInteractionEnabled = false
             } else {
-                self.collectionView.isHidden = false
+                collectionView.alpha = 1
+                collectionView.isUserInteractionEnabled = true
                 self.activityIndicator.stopAnimating()
             }
         }
@@ -439,9 +445,12 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     
     func updateBottomBar() {
         bottomBar.update(with: selectedItems)
-        bottomBar.isHidden = selectedItems.isEmpty
+        bottomBar.isHidden = selectedItems.isEmpty || options.selectionLimit <= 1
         let bottomInset = bottomBar.isHidden ? 0 : (bottomBar.bounds.height - view.safeAreaInsets.bottom)
         collectionView.contentInset.bottom = max(bottomInset, 0)
+        if options.selectionLimit == 1 && !selectedItems.isEmpty {
+            deliverSelectedItems()
+        }
     }
     
     static var tempDirectoryURL: URL {
@@ -460,7 +469,12 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         let fileManager = FileManager.default
         if let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
             for file in files {
-                try? fileManager.removeItem(at: file)
+                do {
+                    try fileManager.removeItem(at: file)
+                    print("temp file removed: \(file)")
+                } catch {
+                    print("Failed to remove temp file at \(file): \(error)")
+                }
             }
         }
     }
