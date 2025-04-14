@@ -55,6 +55,7 @@ enum PKPhotoPickerItem: Equatable {
                 if asset.mediaType == .video {
                     let options = PHVideoRequestOptions()
                     options.deliveryMode = .fastFormat
+                    options.isNetworkAccessAllowed = true
                     print("requestExportSession")
                     cache.requestExportSession(forVideo: asset, options: options, exportPreset: AVAssetExportPresetPassthrough) { session, info in
                         if let session = session {
@@ -78,6 +79,7 @@ enum PKPhotoPickerItem: Equatable {
                     let options = PHImageRequestOptions()
                     options.deliveryMode = .highQualityFormat
                     options.isSynchronous = true
+                    options.isNetworkAccessAllowed = true
                     cache.requestImage(for: asset, targetSize: PHImageManagerMaximumSize, contentMode: .aspectFit, options: options) { image, info in
                         if let image {
                             continuation.resume(returning: .image(image))

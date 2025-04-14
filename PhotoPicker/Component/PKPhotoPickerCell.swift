@@ -103,7 +103,9 @@ class PKPhotoPickerCell: UICollectionViewCell {
         switch item {
         case .asset(let asset):
             representedAssetIdentifier = asset.localIdentifier
-            imageCache?.requestImage(for: asset, targetSize: cellImageSize, contentMode: .aspectFill, options: nil) { image, _ in
+            let options = PHImageRequestOptions()
+            options.isNetworkAccessAllowed = true
+            imageCache?.requestImage(for: asset, targetSize: cellImageSize, contentMode: .aspectFill, options: options) { image, _ in
                 if self.representedAssetIdentifier == asset.localIdentifier {
                     self.imageView.image = image
                 }

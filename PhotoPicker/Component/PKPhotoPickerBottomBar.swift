@@ -106,7 +106,9 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
 
         switch item {
         case let .asset(asset):
-            imageCache?.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: nil) { image, _ in
+            let options = PHImageRequestOptions()
+            options.isNetworkAccessAllowed = true
+            imageCache?.requestImage(for: asset, targetSize: CGSize(width: 100, height: 100), contentMode: .aspectFill, options: options) { image, _ in
                 cell.imageView.image = image
             }
         case let .image(image):

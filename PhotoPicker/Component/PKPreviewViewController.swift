@@ -19,8 +19,9 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
     var currentIndex: Int = 0
     var items = [PKPhotoPickerItem]()
     weak var delegate: PKPreviewDelegate?
-    let pagingScrollView = UIScrollView()
-    let pageControl = UIPageControl()
+    private let pagingScrollView = UIScrollView()
+    private let pageControl = UIPageControl()
+    private let activityIndicator = UIActivityIndicatorView(style: .large)
 
     init(items: [PKPhotoPickerItem], currentIndex: Int = 0) {
         self.items = items
@@ -127,6 +128,16 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
             ])
         }
         
+        activityIndicator.color = .white
+        activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(activityIndicator)
+        NSLayoutConstraint.activate([
+            activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+        activityIndicator.startAnimating()
+        pagingScrollView.isHidden = true
+
         Task {
             await loadPreview()
         }
@@ -150,6 +161,7 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
 
     private func loadPreview() async {
         pagingScrollView.isHidden = true
+        activityIndicator.startAnimating()
         for (index, item) in items.enumerated() {
             let resolved = await item.exportAsset(manager: PHCachingImageManager())
             let frame = CGRect(x: CGFloat(index) * view.bounds.width,
@@ -171,6 +183,8 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
                                               height: view.bounds.height)
         let offsetX = CGFloat(currentIndex) * view.bounds.width
         pagingScrollView.setContentOffset(CGPoint(x: offsetX, y: 0), animated: false)
+        activityIndicator.stopAnimating()
+        activityIndicator.removeFromSuperview()
         pagingScrollView.isHidden = false
     }
 
@@ -363,6 +377,13 @@ class PKVideoPreviewCell: UIView {
         if player.timeControlStatus == .playing {
             player.pause()
         } else {
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback)
+                try AVAudioSession.sharedInstance().setActive(true, options: [])
+            } catch {
+                print(error)
+            }
+            
             if let currentItem = player.currentItem,
                currentItem.currentTime() >= currentItem.duration {
                 player.seek(to: .zero)
