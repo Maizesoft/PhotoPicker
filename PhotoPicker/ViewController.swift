@@ -85,7 +85,7 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
             mode = .photo
         }
         let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
-            selectionLimit: 1,
+            selectionLimit: 5,
             mode: mode,
             cameraEntry: showCamera
         ))

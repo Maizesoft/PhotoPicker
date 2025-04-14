@@ -183,11 +183,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             guard let self = self else { return }
             let previewVC = PKPreviewViewController(items: self.selectedItems, currentIndex: self.selectedItems.firstIndex(of: item) ?? 0)
             previewVC.modalPresentationStyle = .fullScreen
-            if let nav = self.navigationController {
-                nav.pushViewController(previewVC, animated: true)
-            } else {
-                present(previewVC, animated: true)
-            }
+            present(previewVC, animated: true)
         }
         bottomBar.onReordered = { [weak self] items in
             guard let self = self else { return }

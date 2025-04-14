@@ -87,7 +87,7 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         ])
 
         if showRetakeConfirmButton {
-            let toolbar = UIView()
+            let toolbar = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialDark))
             toolbar.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(toolbar)
 
@@ -96,7 +96,7 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
             stackView.distribution = .fillEqually
             stackView.spacing = 50
             stackView.translatesAutoresizingMaskIntoConstraints = false
-            toolbar.addSubview(stackView)
+            toolbar.contentView.addSubview(stackView)
 
             let retakeButton = UIButton(type: .system)
             retakeButton.setTitle("Retake", for: .normal)
