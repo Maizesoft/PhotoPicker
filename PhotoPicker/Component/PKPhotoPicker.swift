@@ -186,6 +186,10 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             present(previewVC, animated: true)
             //self.navigationController?.pushViewController(previewVC, animated: true)
         }
+        bottomBar.onReordered = { [weak self] items in
+            guard let self = self else { return }
+            self.selectedItems = items
+        }
 
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized || status == .limited else { return }

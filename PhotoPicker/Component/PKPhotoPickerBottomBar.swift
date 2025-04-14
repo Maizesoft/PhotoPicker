@@ -1,9 +1,10 @@
 import UIKit
 import Photos
 
-class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionViewDelegate {
+class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDragDelegate, UICollectionViewDropDelegate {
     var onConfirm: (() -> Void)?
     var onTapItem: ((PKPhotoPickerItem) -> Void)?
+    var onReordered: (([PKPhotoPickerItem]) -> Void)?
     var collectionView: UICollectionView!
     var imageCache: PHCachingImageManager?
     let cellSize = CGSize(width: 50, height: 50)
@@ -70,6 +71,9 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
         collectionView.delegate = self
+        collectionView.dragInteractionEnabled = true
+        collectionView.dragDelegate = self
+        collectionView.dropDelegate = self
         collectionView.register(PKPhotoThumbnailCell.self, forCellWithReuseIdentifier: "PKPhotoThumbnailCell")
         contentContainer.addSubview(collectionView)
 
@@ -127,6 +131,38 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         onTapItem?(items[indexPath.item])
+    }
+
+    func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+        let item = items[indexPath.item]
+        let dragItem = UIDragItem(itemProvider: NSItemProvider())
+        dragItem.localObject = item
+        return [dragItem]
+    }
+
+    func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
+        guard let destinationIndexPath = coordinator.destinationIndexPath else { return }
+
+        coordinator.items.forEach { dropItem in
+            guard let sourceIndexPath = dropItem.sourceIndexPath,
+                  let item = dropItem.dragItem.localObject as? PKPhotoPickerItem else { return }
+            collectionView.performBatchUpdates {
+                items.remove(at: sourceIndexPath.item)
+                items.insert(item, at: destinationIndexPath.item)
+                collectionView.moveItem(at: sourceIndexPath, to: destinationIndexPath)
+            } completion: { _ in
+                self.onReordered?(self.items)
+            }
+            coordinator.drop(dropItem.dragItem, toItemAt:destinationIndexPath)
+        }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, canHandle session: UIDropSession) -> Bool {
+        return session.localDragSession != nil
+    }
+
+    func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UICollectionViewDropProposal {
+        return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
     }
 }
 
