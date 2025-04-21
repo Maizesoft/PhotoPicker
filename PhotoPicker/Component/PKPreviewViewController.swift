@@ -1,13 +1,13 @@
 //
-//  PKPhotoPreviewViewController.swift
+//  PKPreviewViewController.swift
 //  PhotoPicker
 //
 //  Created by Xiang Cao on 4/9/25.
 //
 
-import UIKit
-import Photos
 import AVFoundation
+import Photos
+import UIKit
 
 protocol PKPreviewDelegate: AnyObject {
     func previewDidConfirm(_ preview: PKPreviewViewController)
@@ -27,17 +27,18 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         self.items = items
         self.currentIndex = currentIndex
         super.init(nibName: nil, bundle: nil)
-        self.modalPresentationStyle = .fullScreen
+        modalPresentationStyle = .fullScreen
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        
+
         // Configure the horizontal paging scroll view
         pagingScrollView.isPagingEnabled = true
         pagingScrollView.showsHorizontalScrollIndicator = false
@@ -47,14 +48,14 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         pagingScrollView.delegate = self
         pagingScrollView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(pagingScrollView)
-        
+
         NSLayoutConstraint.activate([
             pagingScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pagingScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             pagingScrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            pagingScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            pagingScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
-        
+
         let closeButton = UIButton(type: .system)
         closeButton.setImage(UIImage(systemName: "xmark"), for: .normal)
         closeButton.tintColor = .white
@@ -69,7 +70,7 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             closeButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 10),
             closeButton.widthAnchor.constraint(equalToConstant: 35),
-            closeButton.heightAnchor.constraint(equalToConstant: 35)
+            closeButton.heightAnchor.constraint(equalToConstant: 35),
         ])
 
         // Configure and add pageControl
@@ -83,7 +84,7 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
         pageControl.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             pageControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            bottomConstraint
+            bottomConstraint,
         ])
 
         if showRetakeConfirmButton {
@@ -102,18 +103,18 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
             retakeButton.setTitle("Retake", for: .normal)
             retakeButton.setTitleColor(.white, for: .normal)
             retakeButton.addTarget(self, action: #selector(retakeTapped), for: .touchUpInside)
-            //retakeButton.backgroundColor = UIColor.darkGray
+            // retakeButton.backgroundColor = UIColor.darkGray
             stackView.addArrangedSubview(retakeButton)
 
             let confirmButton = UIButton(type: .system)
             confirmButton.setTitle("Confirm", for: .normal)
             confirmButton.setTitleColor(.white, for: .normal)
             confirmButton.addTarget(self, action: #selector(confirmTapped), for: .touchUpInside)
-            //confirmButton.backgroundColor = UIColor.systemBlue
+            // confirmButton.backgroundColor = UIColor.systemBlue
             stackView.addArrangedSubview(confirmButton)
 
             closeButton.isHidden = true
-            
+
             NSLayoutConstraint.activate([
                 toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
                 toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -124,16 +125,16 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
                 stackView.trailingAnchor.constraint(equalTo: toolbar.safeAreaLayoutGuide.trailingAnchor),
                 stackView.topAnchor.constraint(equalTo: toolbar.topAnchor),
                 stackView.bottomAnchor.constraint(equalTo: toolbar.safeAreaLayoutGuide.bottomAnchor),
-                pageControl.bottomAnchor.constraint(equalTo: toolbar.topAnchor, constant: 0)
+                pageControl.bottomAnchor.constraint(equalTo: toolbar.topAnchor, constant: 0),
             ])
         }
-        
+
         activityIndicator.color = .white
         activityIndicator.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(activityIndicator)
         NSLayoutConstraint.activate([
             activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
         activityIndicator.startAnimating()
         pagingScrollView.isHidden = true
@@ -150,11 +151,11 @@ class PKPreviewViewController: UIViewController, UIScrollViewDelegate {
             dismiss(animated: true)
         }
     }
-    
+
     @objc private func retakeTapped() {
         delegate?.previewDidRetake(self)
     }
-    
+
     @objc private func confirmTapped() {
         delegate?.previewDidConfirm(self)
     }
@@ -208,6 +209,8 @@ class PKPhotoPreviewCell: UIScrollView, UIScrollViewDelegate {
         minimumZoomScale = 1.0
         maximumZoomScale = 4.0
         backgroundColor = .black
+        showsVerticalScrollIndicator = false
+        showsHorizontalScrollIndicator = false
 
         imageView.contentMode = .scaleAspectFit
         addSubview(imageView)
@@ -218,12 +221,13 @@ class PKPhotoPreviewCell: UIScrollView, UIScrollViewDelegate {
         addGestureRecognizer(doubleTap)
     }
 
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         if zoomScale == minimumZoomScale {
-            let boundsSize = self.bounds.size
+            let boundsSize = bounds.size
             let imageSize = image.size
             let scaleWidth = boundsSize.width / imageSize.width
             let scaleHeight = boundsSize.height / imageSize.height
@@ -240,7 +244,7 @@ class PKPhotoPreviewCell: UIScrollView, UIScrollViewDelegate {
     }
 
     func centerImage() {
-        let boundsSize = self.bounds.size
+        let boundsSize = bounds.size
         var frameToCenter = imageView.frame
 
         // If the image is smaller than the scroll view, center it; else stick to edges.
@@ -257,11 +261,11 @@ class PKPhotoPreviewCell: UIScrollView, UIScrollViewDelegate {
         imageView.frame = frameToCenter
     }
 
-    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+    func viewForZooming(in _: UIScrollView) -> UIView? {
         return imageView
     }
 
-    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+    func scrollViewDidZoom(_: UIScrollView) {
         centerImage()
     }
 
@@ -293,11 +297,11 @@ class PKVideoPreviewCell: UIView {
 
     init(frame: CGRect, videoURL: URL) {
         self.videoURL = videoURL
-        self.player = AVPlayer(url: videoURL)
-        self.playerLayer = AVPlayerLayer(player: player)
+        player = AVPlayer(url: videoURL)
+        playerLayer = AVPlayerLayer(player: player)
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: 50, weight: .regular)
         let playImage = UIImage(systemName: "play.fill", withConfiguration: symbolConfig)
-        self.playIcon = UIImageView(image: playImage)
+        playIcon = UIImageView(image: playImage)
 
         super.init(frame: frame)
         backgroundColor = .black
@@ -320,7 +324,7 @@ class PKVideoPreviewCell: UIView {
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(togglePlayback))
         addGestureRecognizer(tapGesture)
-        
+
         let doubleTapGesture = UITapGestureRecognizer(target: self, action: #selector(toggleVideoGravity))
         doubleTapGesture.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTapGesture)
@@ -341,19 +345,20 @@ class PKVideoPreviewCell: UIView {
             let format: (Int) -> String = { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
             self.timeLabel.text = "\(format(current)) / \(format(total))"
         }
-        
+
         Task {
             if let duration = try? await player.currentItem?.asset.load(.duration),
-               duration.isNumeric {
+               duration.isNumeric
+            {
                 let total = Int(duration.seconds)
                 let format: (Int) -> String = { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
                 self.timeLabel.text = "00:00 / \(format(total))"
             }
         }
-        
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -367,7 +372,7 @@ class PKVideoPreviewCell: UIView {
         super.layoutSubviews()
         playerLayer.frame = bounds
         playIcon.frame = bounds
-        
+
         let labelWidth: CGFloat = 100
         let labelHeight: CGFloat = 20
         timeLabel.frame = CGRect(x: (bounds.width - labelWidth) / 2, y: bounds.height - labelHeight - 100, width: labelWidth, height: labelHeight)
@@ -383,9 +388,10 @@ class PKVideoPreviewCell: UIView {
             } catch {
                 print(error)
             }
-            
+
             if let currentItem = player.currentItem,
-               currentItem.currentTime() >= currentItem.duration {
+               currentItem.currentTime() >= currentItem.duration
+            {
                 player.seek(to: .zero)
             }
             player.play()

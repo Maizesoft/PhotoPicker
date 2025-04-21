@@ -1,5 +1,5 @@
-import UIKit
 import Photos
+import UIKit
 
 class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDragDelegate, UICollectionViewDropDelegate {
     var onConfirm: (() -> Void)?
@@ -32,7 +32,7 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
             blurView.leadingAnchor.constraint(equalTo: leadingAnchor),
             blurView.trailingAnchor.constraint(equalTo: trailingAnchor),
             blurView.topAnchor.constraint(equalTo: topAnchor),
-            blurView.bottomAnchor.constraint(equalTo: bottomAnchor)
+            blurView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
 
         addSubview(contentContainer)
@@ -41,7 +41,7 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
             contentContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentContainer.topAnchor.constraint(equalTo: topAnchor),
-            contentContainer.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
+            contentContainer.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
         ])
 
         contentContainer.addSubview(confirmButton)
@@ -81,7 +81,7 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
             collectionView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor, constant: 8),
             collectionView.trailingAnchor.constraint(equalTo: confirmButton.leadingAnchor, constant: -8),
             collectionView.topAnchor.constraint(equalTo: contentContainer.topAnchor),
-            collectionView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor)
+            collectionView.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor),
         ])
     }
 
@@ -96,11 +96,11 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
     }
 
     func update(with newItems: [PKPhotoPickerItem]) {
-        self.items = newItems
+        items = newItems
         collectionView.reloadData()
     }
 
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+    func collectionView(_: UICollectionView, numberOfItemsInSection _: Int) -> Int {
         return items.count
     }
 
@@ -129,11 +129,11 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
         return cell
     }
 
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+    func collectionView(_: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         onTapItem?(items[indexPath.item])
     }
 
-    func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+    func collectionView(_: UICollectionView, itemsForBeginning _: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
         let item = items[indexPath.item]
         let dragItem = UIDragItem(itemProvider: NSItemProvider())
         dragItem.localObject = item
@@ -143,9 +143,9 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
     func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
         guard let destinationIndexPath = coordinator.destinationIndexPath else { return }
 
-        coordinator.items.forEach { dropItem in
+        for dropItem in coordinator.items {
             guard let sourceIndexPath = dropItem.sourceIndexPath,
-                  let item = dropItem.dragItem.localObject as? PKPhotoPickerItem else { return }
+                  let item = dropItem.dragItem.localObject as? PKPhotoPickerItem else { continue }
             collectionView.performBatchUpdates {
                 items.remove(at: sourceIndexPath.item)
                 items.insert(item, at: destinationIndexPath.item)
@@ -153,15 +153,15 @@ class PKPhotoPickerBottomBar: UIView, UICollectionViewDataSource, UICollectionVi
             } completion: { _ in
                 self.onReordered?(self.items)
             }
-            coordinator.drop(dropItem.dragItem, toItemAt:destinationIndexPath)
+            coordinator.drop(dropItem.dragItem, toItemAt: destinationIndexPath)
         }
     }
 
-    func collectionView(_ collectionView: UICollectionView, canHandle session: UIDropSession) -> Bool {
+    func collectionView(_: UICollectionView, canHandle session: UIDropSession) -> Bool {
         return session.localDragSession != nil
     }
 
-    func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UICollectionViewDropProposal {
+    func collectionView(_: UICollectionView, dropSessionDidUpdate _: UIDropSession, withDestinationIndexPath _: IndexPath?) -> UICollectionViewDropProposal {
         return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
     }
 }
@@ -179,11 +179,12 @@ class PKPhotoThumbnailCell: UICollectionViewCell {
             imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
         ])
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 }

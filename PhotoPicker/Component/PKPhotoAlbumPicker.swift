@@ -1,12 +1,12 @@
 //
-//  PhotoAlbumPicker.swift
+//  PKPhotoAlbumPicker.swift
 //  PhotoPicker
 //
 //  Created by Xiang Cao on 4/7/25.
 //
 
-import UIKit
 import Photos
+import UIKit
 
 class PKPhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDelegate {
     var collections: [PHAssetCollection] = []
@@ -32,14 +32,14 @@ class PKPhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDe
 
     // MARK: - UITableViewDataSource
 
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    func tableView(_: UITableView, numberOfRowsInSection _: Int) -> Int {
         return collections.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cellIdentifier = "AlbumCell"
         let cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier) ??
-                   UITableViewCell(style: .default, reuseIdentifier: cellIdentifier)
+            UITableViewCell(style: .default, reuseIdentifier: cellIdentifier)
         let collection = collections[indexPath.row]
         cell.textLabel?.text = collection.localizedTitle
         return cell
@@ -53,8 +53,8 @@ class PKPhotoAlbumPicker: UIViewController, UITableViewDataSource, UITableViewDe
         didSelectAlbum?(selectedCollection, indexPath.row)
         dismiss(animated: true, completion: nil)
     }
-    
-    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+
+    func tableView(_: UITableView, heightForRowAt _: IndexPath) -> CGFloat {
         return rowHeight
     }
 }

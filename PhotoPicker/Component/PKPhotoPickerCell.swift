@@ -1,19 +1,19 @@
 //
-//  PhotoPickerCell.swift
+//  PKPhotoPickerCell.swift
 //  PhotoPicker
 //
 //  Created by Xiang Cao on 4/7/25.
 //
 
-import UIKit
 import Photos
+import UIKit
 
 class PKPhotoPickerCell: UICollectionViewCell {
     var representedAssetIdentifier: String?
     var imageCache: PHCachingImageManager?
-    
+
     private let scrimView = PKGradientView(colors: [UIColor.black.withAlphaComponent(0.6), UIColor.clear])
-    
+
     let imageView: UIImageView = {
         let iv = UIImageView()
         iv.contentMode = .scaleAspectFill
@@ -21,7 +21,7 @@ class PKPhotoPickerCell: UICollectionViewCell {
         iv.translatesAutoresizingMaskIntoConstraints = false
         return iv
     }()
-    
+
     let selectionIndicator: UIImageView = {
         let iv = UIImageView()
         iv.image = UIImage(systemName: "checkmark.circle.fill")
@@ -35,7 +35,7 @@ class PKPhotoPickerCell: UICollectionViewCell {
         iv.backgroundColor = UIColor.white.withAlphaComponent(0.8)
         return iv
     }()
-    
+
     let durationLabel: UILabel = {
         let label = UILabel()
         label.font = UIFont.systemFont(ofSize: 12, weight: .medium)
@@ -53,38 +53,39 @@ class PKPhotoPickerCell: UICollectionViewCell {
             imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
             imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+            imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
         ])
-        
+
         contentView.addSubview(selectionIndicator)
         NSLayoutConstraint.activate([
             selectionIndicator.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             selectionIndicator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -5),
             selectionIndicator.widthAnchor.constraint(equalToConstant: 24),
-            selectionIndicator.heightAnchor.constraint(equalToConstant: 24)
+            selectionIndicator.heightAnchor.constraint(equalToConstant: 24),
         ])
-        
+
         contentView.addSubview(durationLabel)
         NSLayoutConstraint.activate([
             durationLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 5),
             durationLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
-            durationLabel.heightAnchor.constraint(equalToConstant: 20)
+            durationLabel.heightAnchor.constraint(equalToConstant: 20),
         ])
-        
+
         contentView.insertSubview(scrimView, belowSubview: durationLabel)
         scrimView.isHidden = true
         NSLayoutConstraint.activate([
             scrimView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrimView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             scrimView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            scrimView.heightAnchor.constraint(equalToConstant: 25)
+            scrimView.heightAnchor.constraint(equalToConstant: 25),
         ])
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     override func prepareForReuse() {
         super.prepareForReuse()
         imageView.image = nil
@@ -92,16 +93,16 @@ class PKPhotoPickerCell: UICollectionViewCell {
         durationLabel.text = nil
         scrimView.isHidden = true
     }
-    
+
     override var isSelected: Bool {
         didSet {
             selectionIndicator.isHidden = !isSelected
         }
     }
-    
+
     func configure(with item: PKPhotoPickerItem, cellImageSize: CGSize) {
         switch item {
-        case .asset(let asset):
+        case let .asset(asset):
             representedAssetIdentifier = asset.localIdentifier
             let options = PHImageRequestOptions()
             options.isNetworkAccessAllowed = true
@@ -111,7 +112,7 @@ class PKPhotoPickerCell: UICollectionViewCell {
                 }
             }
             configureDuration(asset.duration)
-        case .image(let image):
+        case let .image(image):
             imageView.image = image
         case .video:
             imageView.isHidden = true
@@ -121,7 +122,7 @@ class PKPhotoPickerCell: UICollectionViewCell {
             imageView.contentMode = .center
         }
     }
-    
+
     private func configureDuration(_ duration: TimeInterval) {
         if duration > 0 {
             let minutes = Int(duration) / 60

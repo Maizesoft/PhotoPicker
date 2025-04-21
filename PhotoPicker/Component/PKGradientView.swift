@@ -1,5 +1,5 @@
 //
-//  GradientView.swift
+//  PKGradientView.swift
 //  PhotoPicker
 //
 //  Created by Xiang Cao on 4/7/25.
@@ -13,7 +13,7 @@ final class PKGradientView: UIView {
     }
 
     var gradientLayer: CAGradientLayer {
-        return self.layer as! CAGradientLayer
+        return layer as! CAGradientLayer
     }
 
     init(colors: [UIColor], locations: [NSNumber]? = nil, startPoint: CGPoint = CGPoint(x: 0.5, y: 1.0), endPoint: CGPoint = CGPoint(x: 0.5, y: 0.0)) {
@@ -26,8 +26,8 @@ final class PKGradientView: UIView {
         gradientLayer.endPoint = endPoint
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 }
-

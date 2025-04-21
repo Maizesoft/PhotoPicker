@@ -4,19 +4,21 @@
 //
 //  Created by Xiang Cao on 4/7/25.
 //
-import UIKit
 import AVFoundation
 import Photos
+import UIKit
 
 struct PKCameraOptions {
     enum PKCameraMode {
         case photo
         case video
+        case combo // shot press to take photo, long press starts video recording
     }
+
     let mode: PKCameraMode
     let position: AVCaptureDevice.Position
     let showPreview: Bool
-    
+
     init(mode: PKCameraMode, position: AVCaptureDevice.Position = .back, showPreview: Bool = true) {
         self.mode = mode
         self.position = position
@@ -40,15 +42,16 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     private var recordingTimer: Timer?
     private var permissionLabel: UILabel?
     weak var delegate: PKCameraViewControllerDelegate?
-    
+
     var isRecording = false
-    
+
     init(options: PKCameraOptions) {
         self.options = options
         super.init(nibName: nil, bundle: nil)
     }
-    
-    required init?(coder: NSCoder) {
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -57,13 +60,13 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         view.backgroundColor = .black
 
         let closeImage = UIImage(systemName: "xmark")?.withConfiguration(UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)).withTintColor(.white, renderingMode: .alwaysOriginal)
-        self.navigationItem.leftBarButtonItem = UIBarButtonItem(image: closeImage, style: .plain, target: self, action: #selector(closeTapped))
-        self.navigationItem.hidesBackButton = true
-        
+        navigationItem.leftBarButtonItem = UIBarButtonItem(image: closeImage, style: .plain, target: self, action: #selector(closeTapped))
+        navigationItem.hidesBackButton = true
+
         checkPermissionAndSetup()
         setupViews()
     }
-    
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         sessionQueue.async {
@@ -72,7 +75,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             }
         }
     }
-    
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         sessionQueue.async {
@@ -94,17 +97,17 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             DispatchQueue.main.async {
                 self.permissionLabel?.isHidden = false
             }
-            break
         }
     }
-    
+
     var isVideoMode: Bool {
         return options.mode == .video
     }
+
     var isPhotoMode: Bool {
         return options.mode == .photo
     }
-    
+
     func setupViews() {
         let bottomBar = UIView()
         bottomBar.backgroundColor = UIColor.black.withAlphaComponent(0.7)
@@ -114,14 +117,14 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            bottomBar.heightAnchor.constraint(equalToConstant: 150)
+            bottomBar.heightAnchor.constraint(equalToConstant: 150),
         ])
-        
+
         preview.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(preview, at: 0)
         NSLayoutConstraint.activate([
             preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            preview.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
         if isVideoMode {
             NSLayoutConstraint.activate([
@@ -134,7 +137,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
                 preview.bottomAnchor.constraint(equalTo: bottomBar.topAnchor),
             ])
         }
-        
+
         let buttonContainer = UIView()
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
         bottomBar.addSubview(buttonContainer)
@@ -142,14 +145,20 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             buttonContainer.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor),
             buttonContainer.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor),
             buttonContainer.topAnchor.constraint(equalTo: bottomBar.topAnchor),
-            buttonContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            buttonContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
         ])
 
         let shutterButton = PKCameraShutterButton(mode: options.mode)
         shutterButton.translatesAutoresizingMaskIntoConstraints = false
-        shutterButton.innerCircle.backgroundColor = isVideoMode ? .systemRed : .white
-        shutterButton.onTap = {
-            if self.isPhotoMode {
+        shutterButton.onTap = { [weak self] longPress in
+            guard let self = self else { return }
+            if self.options.mode == .combo {
+                if longPress {
+                    self.toggleRecording()
+                } else {
+                    self.capturePhoto()
+                }
+            } else if self.isPhotoMode {
                 self.capturePhoto()
             } else {
                 self.toggleRecording()
@@ -158,7 +167,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         buttonContainer.addSubview(shutterButton)
         NSLayoutConstraint.activate([
             shutterButton.centerXAnchor.constraint(equalTo: buttonContainer.centerXAnchor),
-            shutterButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor)
+            shutterButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor),
         ])
         self.shutterButton = shutterButton
 
@@ -171,7 +180,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         buttonContainer.addSubview(flipButton)
         NSLayoutConstraint.activate([
             flipButton.centerYAnchor.constraint(equalTo: buttonContainer.centerYAnchor),
-            flipButton.trailingAnchor.constraint(equalTo: buttonContainer.trailingAnchor, constant: -20)
+            flipButton.trailingAnchor.constraint(equalTo: buttonContainer.trailingAnchor, constant: -20),
         ])
 
         let timeLabel = UILabel()
@@ -188,10 +197,10 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             timeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             timeLabel.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -12),
             timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 100),
-            timeLabel.heightAnchor.constraint(equalToConstant: 30)
+            timeLabel.heightAnchor.constraint(equalToConstant: 30),
         ])
         recordingTimeLabel = timeLabel
-        
+
         let label = UILabel()
         label.text = "No permission to camera"
         label.textColor = .white
@@ -204,7 +213,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
         ])
         permissionLabel = label
     }
@@ -219,7 +228,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         let deviceTypes: [AVCaptureDevice.DeviceType] = [
             .builtInTripleCamera,
             .builtInDualCamera,
-            .builtInWideAngleCamera
+            .builtInWideAngleCamera,
         ]
         let discoverySession = AVCaptureDevice.DiscoverySession(
             deviceTypes: deviceTypes,
@@ -243,7 +252,8 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             if self.isVideoMode {
                 if let audioDevice = AVCaptureDevice.default(for: .audio),
                    let micInput = try? AVCaptureDeviceInput(device: audioDevice),
-                   self.session.canAddInput(micInput) {
+                   self.session.canAddInput(micInput)
+                {
                     self.session.addInput(micInput)
                 }
             }
@@ -251,15 +261,15 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             self.session.addOutput(self.movieOutput)
             self.session.commitConfiguration()
             self.preview.setSession(self.session)
-            
+
             self.setInitialZoom(for: device)
-            
+
             self.sessionQueue.async {
                 self.session.startRunning()
             }
         }
     }
-    
+
     func switchCamera() {
         guard let currentInput = session.inputs.first as? AVCaptureDeviceInput else { return }
 
@@ -283,7 +293,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             let minZoom = device.minAvailableVideoZoomFactor
             let maxZoom = device.maxAvailableVideoZoomFactor
             let zoomForWideLens: CGFloat
-            
+
             if let first = switchOvers.first {
                 zoomForWideLens = CGFloat(truncating: first)
             } else {
@@ -301,11 +311,11 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     func capturePhoto() {
         shutterButton?.setLoading(true)
         preview.flashShutterEffect()
-        
+
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
-    
+
     func toggleRecording() {
         if isRecording {
             shutterButton?.setLoading(true)
@@ -335,7 +345,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         shutterButton?.setRecording(isRecording)
     }
 
-    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    func photoOutput(_: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error _: Error?) {
         DispatchQueue.global().async {
             guard let cgImage = photo.cgImageRepresentation() else { return }
             let image = UIImage(cgImage: cgImage, scale: 1.0, orientation: self.previewIsMirrored ? .leftMirrored : .right)
@@ -352,8 +362,8 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             }
         }
     }
-    
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+
+    func fileOutput(_: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from _: [AVCaptureConnection], error: Error?) {
         recordingTimer?.invalidate()
         guard error == nil else { return }
         Task {
@@ -371,36 +381,37 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
                     preview.showRetakeConfirmButton = true
                     self.present(preview, animated: true)
                 } else {
-                    delegate?.cameraViewController(self,  didFinishWith: [item])
+                    delegate?.cameraViewController(self, didFinishWith: [item])
                 }
             } catch {
                 shutterButton?.setLoading(false)
             }
         }
     }
-    
+
     private var previewIsMirrored: Bool {
-        if let previewLayer = self.preview.previewLayer,
+        if let previewLayer = preview.previewLayer,
            let connection = previewLayer.connection,
-           connection.isVideoMirrored {
+           connection.isVideoMirrored
+        {
             return true
         }
         return false
     }
 
     @objc func closeTapped() {
-        if let nav = self.navigationController {
+        if let nav = navigationController {
             nav.popViewController(animated: true)
         } else {
-            self.dismiss(animated: true, completion: nil)
+            dismiss(animated: true, completion: nil)
         }
     }
-    
+
     func previewDidConfirm(_ preview: PKPreviewViewController) {
         preview.dismiss(animated: false)
-        self.delegate?.cameraViewController(self, didFinishWith: preview.items)
+        delegate?.cameraViewController(self, didFinishWith: preview.items)
     }
-    
+
     func previewDidRetake(_ preview: PKPreviewViewController) {
         preview.dismiss(animated: true)
     }

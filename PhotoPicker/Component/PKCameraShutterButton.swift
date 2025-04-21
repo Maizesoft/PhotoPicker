@@ -5,37 +5,33 @@
 //  Created by Xiang Cao on 4/8/25.
 //
 
-import UIKit
 import AVFAudio
+import UIKit
 
 class PKCameraShutterButton: UIControl {
     var softHaptics: UIImpactFeedbackGenerator?
     var rigidHaptics: UIImpactFeedbackGenerator?
     let innerCircle = UIView()
-    var onTap: (() -> Void)?
+    var onTap: ((_ longPress: Bool) -> Void)?
     private var activityIndicator: UIActivityIndicatorView?
+    private var longPressTimer: Timer?
 
     init(mode: PKCameraOptions.PKCameraMode) {
         super.init(frame: .zero)
         let outerCircle = UIView()
         outerCircle.translatesAutoresizingMaskIntoConstraints = false
-        outerCircle.backgroundColor = .white
+        outerCircle.backgroundColor = .clear
         outerCircle.layer.cornerRadius = 32
+        outerCircle.layer.borderColor = UIColor.white.cgColor
+        outerCircle.layer.borderWidth = 2
         addSubview(outerCircle)
 
-        let gapCircle = UIView()
-        gapCircle.translatesAutoresizingMaskIntoConstraints = false
-        gapCircle.backgroundColor = .black
-        gapCircle.layer.cornerRadius = 30
-        addSubview(gapCircle)
-
         innerCircle.translatesAutoresizingMaskIntoConstraints = false
-        innerCircle.backgroundColor = mode == .photo ? .white : .systemRed
+        innerCircle.backgroundColor = (mode == .video ? .systemRed : .white)
         innerCircle.layer.cornerRadius = 28
         addSubview(innerCircle)
-        
+
         outerCircle.isUserInteractionEnabled = false
-        gapCircle.isUserInteractionEnabled = false
         innerCircle.isUserInteractionEnabled = false
 
         NSLayoutConstraint.activate([
@@ -44,28 +40,24 @@ class PKCameraShutterButton: UIControl {
             outerCircle.widthAnchor.constraint(equalToConstant: 64),
             outerCircle.heightAnchor.constraint(equalToConstant: 64),
 
-            gapCircle.centerXAnchor.constraint(equalTo: centerXAnchor),
-            gapCircle.centerYAnchor.constraint(equalTo: centerYAnchor),
-            gapCircle.widthAnchor.constraint(equalToConstant: 60),
-            gapCircle.heightAnchor.constraint(equalToConstant: 60),
-
             innerCircle.centerXAnchor.constraint(equalTo: centerXAnchor),
             innerCircle.centerYAnchor.constraint(equalTo: centerYAnchor),
             innerCircle.widthAnchor.constraint(equalToConstant: 56),
-            innerCircle.heightAnchor.constraint(equalToConstant: 56)
+            innerCircle.heightAnchor.constraint(equalToConstant: 56),
         ])
 
         addTarget(self, action: #selector(touchDown), for: .touchDown)
         addTarget(self, action: #selector(touchUp), for: [.touchUpInside, .touchUpOutside, .touchCancel])
 
         isUserInteractionEnabled = true
-        
+
         softHaptics = UIImpactFeedbackGenerator(style: .soft, view: self)
         rigidHaptics = UIImpactFeedbackGenerator(style: .rigid, view: self)
         softHaptics?.prepare()
     }
 
-    required init?(coder: NSCoder) {
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
@@ -74,6 +66,14 @@ class PKCameraShutterButton: UIControl {
         UIView.animate(withDuration: 0.1) {
             self.innerCircle.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
         }
+        if let longPressTimer {
+            longPressTimer.invalidate()
+        }
+        longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false, block: { _ in
+            self.longPressTimer = nil
+            self.rigidHaptics?.impactOccurred(intensity: 0.9)
+            self.onTap?(true)
+        })
     }
 
     @objc private func touchUp() {
@@ -81,9 +81,15 @@ class PKCameraShutterButton: UIControl {
         UIView.animate(withDuration: 0.1) {
             self.innerCircle.transform = .identity
         }
-        onTap?()
+        if let longPressTimer {
+            longPressTimer.invalidate()
+            self.longPressTimer = nil
+            onTap?(false)
+        } else {
+            onTap?(true)
+        }
     }
-    
+
     func setLoading(_ loading: Bool) {
         if loading {
             innerCircle.isHidden = true
@@ -95,7 +101,7 @@ class PKCameraShutterButton: UIControl {
                 addSubview(indicator)
                 NSLayoutConstraint.activate([
                     indicator.centerXAnchor.constraint(equalTo: innerCircle.centerXAnchor),
-                    indicator.centerYAnchor.constraint(equalTo: innerCircle.centerYAnchor)
+                    indicator.centerYAnchor.constraint(equalTo: innerCircle.centerYAnchor),
                 ])
                 activityIndicator = indicator
             }
@@ -105,7 +111,7 @@ class PKCameraShutterButton: UIControl {
             activityIndicator = nil
         }
     }
-    
+
     func setRecording(_ recording: Bool) {
         let cornerRadius: CGFloat = recording ? 8 : 28
         let scale: CGFloat = recording ? 0.6 : 1.0
@@ -113,9 +119,12 @@ class PKCameraShutterButton: UIControl {
             self.innerCircle.layer.cornerRadius = cornerRadius
             self.innerCircle.transform = CGAffineTransform(scaleX: scale, y: scale)
         }, completion: nil)
-        try? AVAudioSession.sharedInstance().setAllowHapticsAndSystemSoundsDuringRecording(recording)
+        innerCircle.backgroundColor = recording ? .systemRed : .white
+        if recording {
+            try? AVAudioSession.sharedInstance().setAllowHapticsAndSystemSoundsDuringRecording(true)
+        }
     }
-    
+
     override var intrinsicContentSize: CGSize {
         return CGSize(width: 64, height: 64)
     }

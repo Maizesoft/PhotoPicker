@@ -109,10 +109,11 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
                 stackView.addArrangedSubview(imageView)
             }
         }
+        picker.dismiss(animated: true)
     }
     
     func photoPickerDidCancel(_ picker: PKPhotoPicker) {
-        
+        picker.dismiss(animated: true)
     }
     
 }
