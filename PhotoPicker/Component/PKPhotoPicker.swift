@@ -145,7 +145,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         collectionView.register(PKPhotoPickerCell.self, forCellWithReuseIdentifier: "PhotoPickerCell")
         collectionView.dataSource = self
         collectionView.delegate = self
-        collectionView.allowsMultipleSelection = true
+        collectionView.allowsMultipleSelection = options.selectionLimit > 1
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -218,7 +218,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
                     result.append(item)
                 }
             }
-
+            setLoading(false)
             self.delegate?.photoPicker(self, didPick: result)
         }
     }
@@ -415,15 +415,15 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         }
     }
 
-    func collectionView(_: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+    func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
         if let item = itemAtIndexPath(indexPath) {
             switch item {
             case .asset, .image, .video:
-                return selectedItems.count < options.selectionLimit
+                return selectedItems.count < options.selectionLimit || collectionView.allowsMultipleSelection == false
             case .camera:
                 let cameraVC = PKCameraViewController(
                     options: PKCameraOptions(
-                        mode: .combo,
+                        mode: options.mode == .photo ? .photo : .video,
                         position: .back
                     )
                 )
