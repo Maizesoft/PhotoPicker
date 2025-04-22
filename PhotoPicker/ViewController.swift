@@ -75,19 +75,16 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
     @objc func presentPhotoPicker(_ sender: UIButton) {
         let title = sender.title(for: .normal)
         let mode: PKPhotoPickerOptions.PKPhotoPickerMode
-        var showCamera = true
         if title?.contains("Video") == true {
             mode = .video
         } else if title?.contains("All") == true {
             mode = .all
-            showCamera = false
         } else {
             mode = .photo
         }
         let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
             selectionLimit: 5,
             mode: mode,
-            cameraEntry: showCamera
         ))
         picker.delegate = self
         let navController = UINavigationController(rootViewController: picker)

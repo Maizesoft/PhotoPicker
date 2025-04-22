@@ -12,7 +12,7 @@ struct PKCameraOptions {
     enum PKCameraMode {
         case photo
         case video
-        case combo // shot press to take photo, long press starts video recording
+        case combo // short press to take photo, long press starts video recording
     }
 
     let mode: PKCameraMode

@@ -423,7 +423,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
             case .camera:
                 let cameraVC = PKCameraViewController(
                     options: PKCameraOptions(
-                        mode: options.mode == .photo ? .photo : .video,
+                        mode: .combo,
                         position: .back
                     )
                 )
