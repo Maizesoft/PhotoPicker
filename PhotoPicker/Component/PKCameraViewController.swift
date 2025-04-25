@@ -334,7 +334,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             recordingTimeLabel?.text = "00:00:00"
             recordingTimeLabel?.isHidden = false
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-                let totalSeconds = Int(self.movieOutput.recordedDuration.seconds)
+                let totalSeconds = Int(ceil(self.movieOutput.recordedDuration.seconds))
                 let hours = totalSeconds / 3600
                 let minutes = (totalSeconds % 3600) / 60
                 let seconds = totalSeconds % 60
