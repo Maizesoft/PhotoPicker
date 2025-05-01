@@ -82,6 +82,7 @@ class ViewController: UIViewController, PKPhotoPickerDelegate {
         } else {
             mode = .photo
         }
+        PKPhotoPicker.clearCaches()
         let picker = PKPhotoPicker(options: PKPhotoPickerOptions(
             selectionLimit: 5,
             mode: mode,

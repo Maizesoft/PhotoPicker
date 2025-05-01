@@ -66,8 +66,19 @@ enum PKPhotoPickerItem: Equatable {
                             print("session.exportAsynchronously")
                             session.exportAsynchronously {
                                 if session.status == .completed {
-                                    print(outputURL)
-                                    continuation.resume(returning: .video(outputURL, nil))
+                                    Task {
+                                        let avAsset = AVURLAsset(url: outputURL)
+                                        let imageGenerator = AVAssetImageGenerator(asset: avAsset)
+                                        imageGenerator.appliesPreferredTrackTransform = true
+                                        let time = CMTime(seconds: 0, preferredTimescale: 600)
+
+                                        do {
+                                            let (thumbnail, _) = try await imageGenerator.image(at: time)
+                                            continuation.resume(returning: .video(outputURL, UIImage(cgImage: thumbnail)))
+                                        } catch {
+                                            continuation.resume(returning: .video(outputURL, nil))
+                                        }
+                                    }
                                 } else {
                                     continuation.resume(returning: nil)
                                 }
@@ -107,10 +118,11 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     let options: PKPhotoPickerOptions
     weak var delegate: PKPhotoPickerDelegate?
     private var currentItems: [PKPhotoPickerItem] = []
-    private var currentFetch = PHFetchResult<PHAsset>()
     private var selectedItems: [PKPhotoPickerItem] = []
-    private var collections: [PHAssetCollection] = []
+    static private var collections: [PHAssetCollection] = []
+    static private var cachedFetches = [PHAssetCollection: PHFetchResult<PHAsset>]()
     private var currentCollectionIndex = 0
+    static private let fetchQueue = DispatchQueue(label: "PKPhotoPicker fetch queue")
     private let albumButton = UIButton(type: .system)
     private let imageCache = PHCachingImageManager()
     private var cellImageSize: CGSize = CGSizeMake(100, 100)
@@ -193,7 +205,13 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
 
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized || status == .limited else { return }
-            self.fetchCollection()
+            PKPhotoPicker.fetchCollection(self.options) {
+                if PKPhotoPicker.collections.count > self.currentCollectionIndex, let title = PKPhotoPicker.collections[self.currentCollectionIndex].localizedTitle {
+                    self.albumButton.setTitle(title, for: .normal)
+                    self.albumButton.sizeToFit()
+                }
+                self.fetchAssets()
+            }
             PHPhotoLibrary.shared().register(self)
         }
     }
@@ -223,69 +241,72 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         }
     }
 
-    func fetchCollection() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
-            result.enumerateObjects { collection, _, _ in
-                let fetchOptions = PHFetchOptions()
-                if self.options.mode != .all {
-                    fetchOptions.predicate = NSPredicate(format: "mediaType == %d", self.options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
+    static func fetchCollection(_ options: PKPhotoPickerOptions, completion: (() -> Void)? = nil) {
+        fetchQueue.async {
+            if PKPhotoPicker.collections.isEmpty {
+                let result = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
+                PKPhotoPicker.collections.removeAll()
+                result.enumerateObjects { collection, _, _ in
+                    let fetchOptions = PHFetchOptions()
+                    if options.mode != .all {
+                        fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
+                    }
+                    fetchOptions.fetchLimit = 1 // we only care if it's non-empty
+                    let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+                    if result.count > 0 {
+                        PKPhotoPicker.collections.append(collection)
+                    }
                 }
-                fetchOptions.fetchLimit = 1 // we only care if it's non-empty
-                let result = PHAsset.fetchAssets(in: collection, options: fetchOptions)
-                if result.count > 0 {
-                    self.collections.append(collection)
-                }
+                PKPhotoPicker.cachedFetches.removeAll()
             }
+            
             DispatchQueue.main.async {
-                if self.collections.count > self.currentCollectionIndex, let title = self.collections[self.currentCollectionIndex].localizedTitle {
-                    self.albumButton.setTitle(title, for: .normal)
-                    self.albumButton.sizeToFit()
-                }
-                self.fetchAssets()
+                completion?()
             }
         }
     }
 
     func fetchAssets() {
-        guard collections.count > currentCollectionIndex else {
+        guard PKPhotoPicker.collections.count > currentCollectionIndex else {
             return
         }
         setLoading(true)
+        let currentCollection = PKPhotoPicker.collections[self.currentCollectionIndex]
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         if options.mode != .all {
             fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
         }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        PKPhotoPicker.fetchQueue.async { [weak self] in
             guard let self = self else { return }
-            self.currentFetch = PHAsset.fetchAssets(in: self.collections[self.currentCollectionIndex], options: fetchOptions)
+            var fetch = PKPhotoPicker.cachedFetches[currentCollection]
+            if fetch == nil {
+                fetch = PHAsset.fetchAssets(in: currentCollection, options: fetchOptions)
+                PKPhotoPicker.cachedFetches[currentCollection] = fetch
+            }
+            
             var fetchedAssets: [PKPhotoPickerItem] = []
             if options.cameraEntry {
                 fetchedAssets.append(.camera)
             }
-            self.currentFetch.enumerateObjects { asset, _, _ in
+            fetch?.enumerateObjects { asset, _, _ in
                 fetchedAssets.append(.asset(asset))
             }
             DispatchQueue.main.async {
                 self.currentItems = fetchedAssets
                 self.collectionView.reloadData()
-                // restore selection
-                for (index, item) in self.currentItems.enumerated() {
-                    if self.selectedItems.contains(item) {
-                        let indexPath = IndexPath(item: index, section: 0)
-                        self.collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
-                    }
-                }
                 self.setLoading(false)
             }
         }
     }
 
     func photoLibraryDidChange(_ changeInstance: PHChange) {
-        if changeInstance.changeDetails(for: currentFetch) != nil {
-            fetchAssets()
+        let currentCollection = PKPhotoPicker.collections[self.currentCollectionIndex]
+        if let currentFetch = PKPhotoPicker.cachedFetches[currentCollection] {
+            if changeInstance.changeDetails(for: currentFetch) != nil {
+                PKPhotoPicker.cachedFetches.removeValue(forKey: currentCollection)
+                fetchAssets()
+            }
         }
     }
 
@@ -320,6 +341,9 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         cell.imageCache = imageCache
         if let item = itemAtIndexPath(indexPath) {
             cell.configure(with: item, cellImageSize: cellImageSize)
+            if selectedItems.contains(item) {
+                collectionView.selectItem(at: indexPath, animated: false, scrollPosition: .centeredVertically)
+            }
         }
 
         return cell
@@ -372,7 +396,7 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
 
     @objc private func showAlbumSelection() {
         let albumPicker = PKPhotoAlbumPicker()
-        albumPicker.collections = collections
+        albumPicker.collections = PKPhotoPicker.collections
         albumPicker.didSelectAlbum = { [weak self] selectedCollection, index in
             guard let self = self else { return }
             self.currentCollectionIndex = index
@@ -401,8 +425,8 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         if let item = itemAtIndexPath(indexPath) {
             if !selectedItems.contains(item) {
                 selectedItems.append(item)
+                updateBottomBar()
             }
-            updateBottomBar()
         }
     }
 
@@ -410,8 +434,8 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         if let item = itemAtIndexPath(indexPath) {
             if let index = selectedItems.firstIndex(of: item) {
                 selectedItems.remove(at: index)
+                updateBottomBar()
             }
-            updateBottomBar()
         }
     }
 
@@ -419,7 +443,12 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
         if let item = itemAtIndexPath(indexPath) {
             switch item {
             case .asset, .image, .video:
-                return selectedItems.count < options.selectionLimit || collectionView.allowsMultipleSelection == false
+                if collectionView.allowsMultipleSelection == false {
+                    selectedItems.removeAll()
+                    return true
+                } else {
+                    return selectedItems.count < options.selectionLimit
+                }
             case .camera:
                 let cameraVC = PKCameraViewController(
                     options: PKCameraOptions(
@@ -475,6 +504,30 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
                     print("Failed to remove temp file at \(file): \(error)")
                 }
             }
+        }
+    }
+    
+    static func warmUpFetches(_ options: PKPhotoPickerOptions) {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .authorized || status == .limited else { return }
+        fetchCollection(options) {
+            if let firstCollection = PKPhotoPicker.collections.first {
+                PKPhotoPicker.fetchQueue.async {
+                    let fetchOptions = PHFetchOptions()
+                    fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+                    if options.mode != .all {
+                        fetchOptions.predicate = NSPredicate(format: "mediaType == %d", options.mode == .photo ? PHAssetMediaType.image.rawValue : PHAssetMediaType.video.rawValue)
+                    }
+                    PKPhotoPicker.cachedFetches[firstCollection] = PHAsset.fetchAssets(in: firstCollection, options: fetchOptions)
+                }
+            }
+        }
+    }
+    
+    static func clearCaches() {
+        PKPhotoPicker.fetchQueue.async {
+            PKPhotoPicker.cachedFetches.removeAll()
+            PKPhotoPicker.collections.removeAll()
         }
     }
 }

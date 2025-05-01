@@ -19,7 +19,7 @@ class PKCameraShutterButton: UIControl {
 
     init(mode: PKCameraOptions.PKCameraMode) {
         super.init(frame: .zero)
-        
+
         layer.addSublayer(outerCircle)
         layer.addSublayer(innerCircle)
 
@@ -61,7 +61,7 @@ class PKCameraShutterButton: UIControl {
         if let longPressTimer {
             longPressTimer.invalidate()
         }
-        longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false, block: { _ in
+        longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.33, repeats: false, block: { _ in
             self.longPressTimer = nil
             self.rigidHaptics?.impactOccurred(intensity: 0.9)
             self.onTap?(true)
@@ -92,8 +92,8 @@ class PKCameraShutterButton: UIControl {
                 indicator.startAnimating()
                 addSubview(indicator)
                 NSLayoutConstraint.activate([
-                    indicator.centerXAnchor.constraint(equalTo: self.centerXAnchor),
-                    indicator.centerYAnchor.constraint(equalTo: self.centerYAnchor),
+                    indicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+                    indicator.centerYAnchor.constraint(equalTo: centerYAnchor),
                 ])
                 activityIndicator = indicator
             }
@@ -104,16 +104,21 @@ class PKCameraShutterButton: UIControl {
     }
 
     func setRecording(_ recording: Bool) {
-        let cornerRadius: CGFloat = recording ? 8 : 28
-        
+        // preset the stroke progress
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        outerCircle.strokeEnd = recording ? 0 : 1
+        CATransaction.commit()
+
         UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: [.curveEaseInOut], animations: {
+            let cornerRadius: CGFloat = recording ? 8 : 28
             let newPath = UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 56, height: 56), cornerRadius: cornerRadius)
             self.innerCircle.path = newPath.cgPath
             self.innerCircle.fillColor = recording ? UIColor.systemRed.cgColor : UIColor.white.cgColor
-            
+
             let innerscale: CGFloat = recording ? 0.6 : 1.0
             self.innerCircle.setAffineTransform(CGAffineTransform(scaleX: innerscale, y: innerscale))
-            let outerscale: CGFloat = recording ? 1.5 : 1.0
+            let outerscale: CGFloat = recording ? 1.8 : 1.0
             let scaleTransform = CGAffineTransform(scaleX: outerscale, y: outerscale)
             let rotationTransform = CGAffineTransform(rotationAngle: -.pi / 2)
             self.outerCircle.setAffineTransform(scaleTransform.concatenating(rotationTransform))
@@ -121,13 +126,13 @@ class PKCameraShutterButton: UIControl {
             self.outerCircle.strokeColor = recording ? UIColor.systemRed.cgColor : UIColor.white.cgColor
             self.outerCircle.lineWidth = recording ? 5 : 2
         }, completion: nil)
-        self.outerCircle.strokeEnd = recording ? 0 : 1
+
         if recording {
             try? AVAudioSession.sharedInstance().setAllowHapticsAndSystemSoundsDuringRecording(true)
         }
     }
 
-    func setProgress(_ progress: CGFloat) {
+    func setProgress(_ progress: CGFloat, animated _: Bool = true) {
         let clampedProgress = max(0, min(progress, 1))
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.2)

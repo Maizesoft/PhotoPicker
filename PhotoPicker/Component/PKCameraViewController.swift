@@ -12,7 +12,7 @@ struct PKCameraOptions {
     enum PKCameraMode {
         case photo
         case video
-        case combo // short press to take photo, long press starts video recording
+        case combo // shot press to take photo, long press starts video recording
     }
 
     let mode: PKCameraMode
@@ -63,8 +63,9 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         navigationItem.leftBarButtonItem = UIBarButtonItem(image: closeImage, style: .plain, target: self, action: #selector(closeTapped))
         navigationItem.hidesBackButton = true
 
-        checkPermissionAndSetup()
-        setupViews()
+        sessionQueue.async {
+            self.checkPermissionAndSetup()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -72,6 +73,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         sessionQueue.async {
             if !self.session.isRunning {
                 self.session.startRunning()
+                self.showPreview(true)
             }
         }
     }
@@ -81,6 +83,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         sessionQueue.async {
             if self.session.isRunning {
                 self.session.stopRunning()
+                self.showPreview(false, animated: false)
             }
         }
     }
@@ -96,6 +99,21 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
         default:
             DispatchQueue.main.async {
                 self.permissionLabel?.isHidden = false
+            }
+        }
+    }
+    
+    private func showPreview(_ show: Bool, animated: Bool = true) {
+        DispatchQueue.main.async {
+            if animated {
+                UIView.animate(withDuration: 0.15, animations: {
+                    self.preview.alpha = show ? 1 : 0
+                }, completion: { _ in
+                    self.preview.isHidden = show ? false : true
+                })
+            } else {
+                self.preview.alpha = show ? 1 : 0
+                self.preview.isHidden = show ? false : true
             }
         }
     }
@@ -122,6 +140,8 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
 
         preview.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(preview, at: 0)
+        preview.isHidden = true
+        preview.alpha = 0
         NSLayoutConstraint.activate([
             preview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             preview.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -240,33 +260,36 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
 
     func setupCamera() {
         DispatchQueue.main.async {
-            guard let device = self.findBestCameraDevice(for: self.options.position),
-                  let input = try? AVCaptureDeviceInput(device: device),
-                  self.session.canAddInput(input),
-                  self.session.canAddOutput(self.photoOutput),
-                  self.session.canAddOutput(self.movieOutput) else { return }
+            self.setupViews()
+        }
 
-            self.session.beginConfiguration()
-            self.session.sessionPreset = self.isPhotoMode ? .photo : .high
-            self.session.addInput(input)
-            if self.isVideoMode {
-                if let audioDevice = AVCaptureDevice.default(for: .audio),
-                   let micInput = try? AVCaptureDeviceInput(device: audioDevice),
-                   self.session.canAddInput(micInput)
-                {
-                    self.session.addInput(micInput)
-                }
+        guard let device = findBestCameraDevice(for: options.position),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input),
+              session.canAddOutput(self.photoOutput),
+              session.canAddOutput(self.movieOutput) else { return }
+
+        session.beginConfiguration()
+        session.sessionPreset = isPhotoMode ? .photo : .high
+        session.addInput(input)
+        if isVideoMode {
+            if let audioDevice = AVCaptureDevice.default(for: .audio),
+               let micInput = try? AVCaptureDeviceInput(device: audioDevice),
+               session.canAddInput(micInput)
+            {
+                session.addInput(micInput)
             }
-            self.session.addOutput(self.photoOutput)
-            self.session.addOutput(self.movieOutput)
-            self.session.commitConfiguration()
-            self.preview.setSession(self.session)
+        }
+        session.addOutput(photoOutput)
+        session.addOutput(movieOutput)
+        session.commitConfiguration()
+        preview.setSession(self.session)
 
-            self.setInitialZoom(for: device)
+        setInitialZoom(for: device)
 
-            self.sessionQueue.async {
-                self.session.startRunning()
-            }
+        sessionQueue.async {
+            self.session.startRunning()
+            self.showPreview(true)
         }
     }
 
@@ -329,17 +352,9 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
                     movieConnection.isVideoMirrored = previewIsMirrored
                 }
             }
-            let outputURL = PKPhotoPicker.tempFileURL(UUID().uuidString, withExtension: "mp4")
+            let outputURL = PKPhotoPicker.tempFileURL(UUID().uuidString, withExtension: "mov")
             movieOutput.startRecording(to: outputURL, recordingDelegate: self)
-            recordingTimeLabel?.text = "00:00:00"
-            recordingTimeLabel?.isHidden = false
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-                let totalSeconds = Int(ceil(self.movieOutput.recordedDuration.seconds))
-                let hours = totalSeconds / 3600
-                let minutes = (totalSeconds % 3600) / 60
-                let seconds = totalSeconds % 60
-                self.recordingTimeLabel?.text = String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-            }
+            movieOutput.maxRecordedDuration = CMTime(seconds: 15, preferredTimescale: 600)
             isRecording = true
         }
         shutterButton?.setRecording(isRecording)
@@ -352,14 +367,29 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
             DispatchQueue.main.async {
                 self.shutterButton?.setLoading(false)
                 if self.options.showPreview {
-                    let preview = PKPreviewViewController(items: [.image(image)])
-                    preview.delegate = self
-                    preview.showRetakeConfirmButton = true
-                    self.present(preview, animated: true)
+                    let previewVC = PKPreviewViewController(items: [.image(image)])
+                    previewVC.delegate = self
+                    previewVC.modalPresentationStyle = .fullScreen
+                    previewVC.showRetakeConfirmButton = true
+                    self.present(previewVC, animated: true)
                 } else {
                     self.delegate?.cameraViewController(self, didFinishWith: [.image(image)])
                 }
             }
+        }
+    }
+    
+    func fileOutput(_: AVCaptureFileOutput, didStartRecordingTo _: URL, from _: [AVCaptureConnection]) {
+        recordingTimeLabel?.text = "00:00"
+        recordingTimeLabel?.isHidden = false
+        shutterButton?.setProgress(0, animated: false)
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            let totalSeconds = Int(round(self.movieOutput.recordedDuration.seconds))
+            // let hours = totalSeconds / 3600
+            let minutes = (totalSeconds % 3600) / 60
+            let seconds = totalSeconds % 60
+            self.recordingTimeLabel?.text = String(format: "%02d:%02d", minutes, seconds)
+            self.shutterButton?.setProgress(self.movieOutput.recordedDuration.seconds / self.movieOutput.maxRecordedDuration.seconds)
         }
     }
 
@@ -376,10 +406,11 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
                 shutterButton?.setLoading(false)
                 let item = PKPhotoPickerItem.video(outputFileURL, UIImage(cgImage: thumbnail))
                 if options.showPreview {
-                    let preview = PKPreviewViewController(items: [item])
-                    preview.delegate = self
-                    preview.showRetakeConfirmButton = true
-                    self.present(preview, animated: true)
+                    let previewVC = PKPreviewViewController(items: [item])
+                    previewVC.delegate = self
+                    previewVC.showRetakeConfirmButton = true
+                    previewVC.modalPresentationStyle = .fullScreen
+                    self.present(previewVC, animated: true)
                 } else {
                     delegate?.cameraViewController(self, didFinishWith: [item])
                 }
@@ -390,8 +421,7 @@ class PKCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, A
     }
 
     private var previewIsMirrored: Bool {
-        if let previewLayer = preview.previewLayer,
-           let connection = previewLayer.connection,
+        if let connection =  preview.previewLayer.connection,
            connection.isVideoMirrored
         {
             return true

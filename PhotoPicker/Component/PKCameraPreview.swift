@@ -7,27 +7,22 @@
 
 import AVFoundation
 import UIKit
+import OSLog
 
 class PKCameraPreview: UIView {
-    var previewLayer: AVCaptureVideoPreviewLayer?
-    private weak var session: AVCaptureSession?
+    var previewLayer = AVCaptureVideoPreviewLayer()
     var onDoubleTap: (() -> Void)?
 
     func setSession(_ session: AVCaptureSession) {
-        if let oldLayer = previewLayer {
-            oldLayer.removeFromSuperlayer()
-        }
-        let newLayer = AVCaptureVideoPreviewLayer(session: session)
-        newLayer.videoGravity = .resizeAspect
-        // newLayer.connection?.automaticallyAdjustsVideoMirroring = false // do not flip selfie preview
-        layer.addSublayer(newLayer)
-        previewLayer = newLayer
-        self.session = session
+        let logger = Logger(subsystem: "PKCameraPreview", category: "Camera")
+        logger.log(level: .debug, "Setting camera preview session")
+        previewLayer.session = session
+        logger.log(level: .debug, "all done")
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        previewLayer?.frame = bounds
+        previewLayer.frame = bounds
     }
 
     func flashShutterEffect() {
@@ -65,16 +60,18 @@ class PKCameraPreview: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        layer.addSublayer(previewLayer)
         setupGestureRecognizers()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        layer.addSublayer(previewLayer)
         setupGestureRecognizers()
     }
 
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
-        guard let session = session,
+        guard let session = previewLayer.session,
               let deviceInput = session.inputs
               .compactMap({ $0 as? AVCaptureDeviceInput })
               .first(where: { $0.device.hasMediaType(.video) }) else { return }
@@ -94,8 +91,7 @@ class PKCameraPreview: UIView {
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        guard let previewLayer = previewLayer,
-              let session = session,
+        guard let session = previewLayer.session,
               let deviceInput = session.inputs.first as? AVCaptureDeviceInput else { return }
         let device = deviceInput.device
         let point = gesture.location(in: self)
@@ -119,7 +115,7 @@ class PKCameraPreview: UIView {
         showFocusIndicator(at: point)
     }
 
-    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+    @objc private func handleDoubleTap(_: UITapGestureRecognizer) {
         onDoubleTap?()
     }
 
