@@ -301,11 +301,13 @@ class PKPhotoPicker: UIViewController, UICollectionViewDataSource, UICollectionV
     }
 
     func photoLibraryDidChange(_ changeInstance: PHChange) {
-        let currentCollection = PKPhotoPicker.collections[self.currentCollectionIndex]
+        let currentCollection = PKPhotoPicker.collections[currentCollectionIndex]
         if let currentFetch = PKPhotoPicker.cachedFetches[currentCollection] {
             if changeInstance.changeDetails(for: currentFetch) != nil {
-                PKPhotoPicker.cachedFetches.removeValue(forKey: currentCollection)
-                fetchAssets()
+                PKPhotoPicker.fetchQueue.async {
+                    PKPhotoPicker.cachedFetches.removeValue(forKey: currentCollection)
+                    self.fetchAssets()
+                }
             }
         }
     }
